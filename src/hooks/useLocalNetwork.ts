@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { getNetworkConfig, logNetworkInfo } from '@/utils/networkConfig';
 
 interface NetworkMessage {
-  type: 'PLAYER_JOINED' | 'PLAYER_BUZZ' | 'PLAYER_ANSWER' | 'GAME_STATE_CHANGE' | 'SYNC_REQUEST' | 'HEARTBEAT' | 'PLAYER_DISCONNECT' | 'SERVER_READY';
+  type: 'PLAYER_JOINED' | 'PLAYER_BUZZ' | 'PLAYER_ANSWER' | 'GAME_STATE_CHANGE' | 'SYNC_REQUEST' | 'HEARTBEAT' | 'PLAYER_DISCONNECT' | 'SERVER_READY' | 'STATE_SYNC';
   data: any;
   timestamp: number;
   deviceId: string;

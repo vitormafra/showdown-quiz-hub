@@ -85,166 +85,184 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const lastHeartbeatRef = useRef<{ [playerId: string]: number }>({});
   const connectionTimeoutRef = useRef<{ [playerId: string]: NodeJS.Timeout }>({});
   
+  // Identificar se este dispositivo é a TV (host autoritativo)
+  const isTV = window.location.pathname === '/tv';
+  
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
     console.log('📡 [QuizContext] Processando mensagem:', message.type, message);
-    console.log('🌍 [QuizContext] Rota atual:', window.location.pathname);
+    console.log('🌍 [QuizContext] Rota atual:', window.location.pathname, 'isTV:', isTV);
     
     switch (message.type) {
       case 'PLAYER_JOINED':
-        console.log('👤 [QuizContext] Jogador tentando entrar:', message.data);
-        setState(prev => {
-          console.log('📊 [QuizContext] Estado antes de processar PLAYER_JOINED:');
-          console.log('  - playersCount:', prev.players.length);
-          console.log('  - gameState:', prev.gameState);
-          
-          const existingPlayer = prev.players.find(p => p.id === message.data.id);
-          if (existingPlayer) {
-            console.log('🔄 [QuizContext] Jogador reconectou:', existingPlayer.name);
-            // Jogador reconectou - marcar como conectado
+        // Apenas a TV processa entrada de jogadores
+        if (isTV) {
+          console.log('👤 [QuizContext] TV processando novo jogador:', message.data);
+          setState(prev => {
+            const existingPlayer = prev.players.find(p => p.id === message.data.id);
+            if (existingPlayer) {
+              console.log('🔄 [QuizContext] Jogador reconectou:', existingPlayer.name);
+              const newState = {
+                ...prev,
+                players: prev.players.map(p => 
+                  p.id === message.data.id ? { ...p, isConnected: true } : p
+                ),
+              };
+              // TV sempre broadcast o estado completo para todos
+              if (sendNetworkMessage) {
+                sendNetworkMessage('STATE_SYNC', newState);
+              }
+              return newState;
+            }
+            
+            console.log('✅ [QuizContext] Novo jogador adicionado:', message.data.name);
             const newState = {
               ...prev,
-              players: prev.players.map(p => 
-                p.id === message.data.id ? { ...p, isConnected: true } : p
-              ),
+              players: [...prev.players, { ...message.data, isConnected: true }],
             };
-            console.log('✅ [QuizContext] Estado após reconexão:', newState);
+            
+            // TV sempre broadcast o estado completo para todos
+            if (sendNetworkMessage) {
+              sendNetworkMessage('STATE_SYNC', newState);
+            }
+            
             return newState;
-          }
-          
-          console.log('✅ [QuizContext] Novo jogador sendo adicionado:', message.data.name);
-          const newState = {
-            ...prev,
-            players: [...prev.players, { ...message.data, isConnected: true }],
-          };
-          console.log('📊 [QuizContext] Novo estado com jogador:');
-          console.log('  - playersCount:', newState.players.length);
-          console.log('  - gameState:', newState.gameState);
-          
-          // Auto-start removido - jogo só inicia manualmente
-          console.log('⏸️ [QuizContext] Auto-start desabilitado - aguardando início manual');
-          
-          console.log('⏸️ [QuizContext] Auto-start NÃO executado - condições não atendidas');
-          return newState;
-        });
+          });
+        } else {
+          console.log('📱 [QuizContext] Jogador ignora PLAYER_JOINED (não é TV)');
+        }
         break;
         
       case 'HEARTBEAT':
-        const { playerId: heartbeatPlayerId } = message.data;
-        lastHeartbeatRef.current[heartbeatPlayerId] = Date.now();
-        
-        // Debounce para evitar mudanças rápidas de estado de conexão
-        if (connectionTimeoutRef.current[heartbeatPlayerId]) {
-          clearTimeout(connectionTimeoutRef.current[heartbeatPlayerId]);
+        // Apenas a TV gerencia heartbeats
+        if (isTV) {
+          const { playerId: heartbeatPlayerId } = message.data;
+          lastHeartbeatRef.current[heartbeatPlayerId] = Date.now();
+          
+          if (connectionTimeoutRef.current[heartbeatPlayerId]) {
+            clearTimeout(connectionTimeoutRef.current[heartbeatPlayerId]);
+          }
+          
+          connectionTimeoutRef.current[heartbeatPlayerId] = setTimeout(() => {
+            setState(prev => {
+              const player = prev.players.find(p => p.id === heartbeatPlayerId);
+              if (player && !player.isConnected) {
+                console.log('💚 [QuizContext] TV marcou jogador conectado:', player.name);
+                const newState = {
+                  ...prev,
+                  players: prev.players.map(p => 
+                    p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
+                  ),
+                };
+                // TV broadcast estado atualizado
+                if (sendNetworkMessage) {
+                  sendNetworkMessage('STATE_SYNC', newState);
+                }
+                return newState;
+              }
+              return prev;
+            });
+            delete connectionTimeoutRef.current[heartbeatPlayerId];
+          }, 1000);
         }
-        
-        // Marcar jogador como conectado com debounce
-        connectionTimeoutRef.current[heartbeatPlayerId] = setTimeout(() => {
-          setState(prev => {
-            const player = prev.players.find(p => p.id === heartbeatPlayerId);
-            if (player && !player.isConnected) {
-              console.log('💚 [QuizContext] Jogador', player.name, 'conectado via heartbeat');
-              return {
-                ...prev,
-                players: prev.players.map(p => 
-                  p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
-                ),
-              };
-            }
-            return prev;
-          });
-          delete connectionTimeoutRef.current[heartbeatPlayerId];
-        }, 1000); // Aguardar 1 segundo antes de marcar como conectado
-        break;
-        
-      case 'PLAYER_DISCONNECT':
-        setState(prev => ({
-          ...prev,
-          players: prev.players.map(p => 
-            p.id === message.data.playerId ? { ...p, isConnected: false } : p
-          ),
-        }));
         break;
         
       case 'PLAYER_BUZZ':
-        setState(prev => ({
-          ...prev,
-          gameState: 'buzzing',
-          activePlayer: message.data.playerId,
-        }));
+        // Apenas a TV processa buzzer
+        if (isTV) {
+          setState(prev => {
+            const newState = {
+              ...prev,
+              gameState: 'buzzing' as const,
+              activePlayer: message.data.playerId,
+            };
+            // TV broadcast estado atualizado
+            if (sendNetworkMessage) {
+              sendNetworkMessage('STATE_SYNC', newState);
+            }
+            return newState;
+          });
+        }
         break;
         
       case 'PLAYER_ANSWER':
-        setState(prev => {
-          const { playerId, answerIndex } = message.data;
-          const player = prev.players.find(p => p.id === playerId);
-          const isCorrect = answerIndex === prev.currentQuestion?.correctAnswer;
+        // Apenas a TV processa respostas
+        if (isTV) {
+          setState(prev => {
+            const { playerId, answerIndex } = message.data;
+            const player = prev.players.find(p => p.id === playerId);
+            const isCorrect = answerIndex === prev.currentQuestion?.correctAnswer;
 
-          if (player && isCorrect) {
-            return {
-              ...prev,
-              players: prev.players.map(p =>
-                p.id === playerId ? { ...p, score: p.score + 10 } : p
-              ),
-              gameState: 'results',
-            };
-          } else {
-            return {
-              ...prev,
-              gameState: 'results',
-            };
-          }
-        });
+            let newState;
+            if (player && isCorrect) {
+              newState = {
+                ...prev,
+                players: prev.players.map(p =>
+                  p.id === playerId ? { ...p, score: p.score + 10 } : p
+                ),
+                gameState: 'results' as const,
+              };
+            } else {
+              newState = {
+                ...prev,
+                gameState: 'results' as const,
+              };
+            }
+            
+            // TV broadcast estado atualizado
+            if (sendNetworkMessage) {
+              sendNetworkMessage('STATE_SYNC', newState);
+            }
+            
+            return newState;
+          });
+        }
         break;
         
-      case 'GAME_STATE_CHANGE':
-        setState(prev => ({
-          ...prev,
-          ...message.data,
-        }));
+      case 'STATE_SYNC':
+        // Jogadores recebem estado completo da TV
+        if (!isTV) {
+          console.log('📱 [QuizContext] Jogador recebeu sincronização da TV:', message.data);
+          setState(message.data);
+        }
         break;
         
       case 'SYNC_REQUEST':
-        console.log('🔄 [QuizContext] SYNC_REQUEST recebido. Rota atual:', window.location.pathname);
-        // Responder com o estado atual (apenas a TV)
-        if (window.location.pathname === '/tv' && sendNetworkMessage) {
-          // Usar setTimeout para garantir que temos o estado mais atual
+        // Apenas a TV responde com estado completo
+        if (isTV && sendNetworkMessage) {
+          console.log('📺 [QuizContext] TV enviando estado para sincronização');
           setTimeout(() => {
             setState(currentState => {
-              console.log('📺 [QuizContext] Enviando estado atual para sincronização:', currentState);
-              sendNetworkMessage('GAME_STATE_CHANGE', currentState);
+              sendNetworkMessage('STATE_SYNC', currentState);
               return currentState;
             });
           }, 100);
-        } else {
-          console.log('🚫 [QuizContext] Não é TV, ignorando SYNC_REQUEST');
         }
         break;
         
       case 'SERVER_READY':
         console.log('✅ [QuizContext] Servidor WebSocket pronto!');
-        console.log('🌐 [QuizContext] Rota atual:', window.location.pathname);
-        // Solicitar sincronização quando servidor estiver pronto
-        if (window.location.pathname !== '/tv' && sendNetworkMessage) {
-          console.log('📱 [QuizContext] Solicitando sincronização como jogador...');
+        // Jogadores solicitam sincronização quando servidor estiver pronto
+        if (!isTV && sendNetworkMessage) {
+          console.log('📱 [QuizContext] Solicitando sincronização da TV...');
           setTimeout(() => {
             sendNetworkMessage('SYNC_REQUEST', {});
           }, 500);
-        } else {
-          console.log('📺 [QuizContext] TV não precisa solicitar sincronização');
         }
         break;
     }
-  }, []);  // Remover dependências para evitar problemas de closure
+  }, [isTV]);  // Depender apenas de isTV
 
   // Inicializar network
   const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
 
-  // Monitor heartbeats para detectar jogadores desconectados (com debounce)
+  // Monitor heartbeats - apenas a TV faz isso
   useEffect(() => {
+    if (!isTV) return; // Apenas a TV monitora heartbeats
+    
     const checkHeartbeats = setInterval(() => {
       const now = Date.now();
-      const timeout = 30000; // 30 segundos sem heartbeat = desconectado (mais tolerante)
+      const timeout = 60000; // 60 segundos sem heartbeat = desconectado (mais tolerante)
       
       setState(prev => {
         let hasChanges = false;
@@ -255,26 +273,31 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (p.isConnected !== shouldBeConnected) {
             hasChanges = true;
             if (!shouldBeConnected) {
-              console.log('⚠️ [QuizContext] Jogador', p.name, 'marcado como desconectado (timeout 30s)');
-            } else {
-              console.log('✅ [QuizContext] Jogador', p.name, 'reconectado');
+              console.log('⚠️ [QuizContext] TV marcou jogador desconectado:', p.name);
             }
           }
           
           return { ...p, isConnected: shouldBeConnected || false };
         });
         
-        // Só atualizar estado se houve mudanças para reduzir re-renders
-        return hasChanges ? { ...prev, players: updatedPlayers } : prev;
+        if (hasChanges) {
+          const newState = { ...prev, players: updatedPlayers };
+          // TV broadcast mudanças de conexão
+          if (sendNetworkMessage) {
+            sendNetworkMessage('STATE_SYNC', newState);
+          }
+          return newState;
+        }
+        
+        return prev;
       });
-    }, 10000); // Verificar a cada 10 segundos (menos frequente)
+    }, 20000); // Verificar a cada 20 segundos
 
     return () => {
       clearInterval(checkHeartbeats);
-      // Limpar timeouts pendentes
       Object.values(connectionTimeoutRef.current).forEach(timeout => clearTimeout(timeout));
     };
-  }, []);
+  }, [isTV, sendNetworkMessage]);
 
   // Backup localStorage (para persistência local)
   useEffect(() => {
@@ -328,108 +351,129 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const startGame = () => {
-    console.log('Iniciando jogo...');
+    // Apenas a TV pode iniciar o jogo
+    if (!isTV) return;
+    
+    console.log('📺 [QuizContext] TV iniciando jogo...');
     const newState = {
       gameState: 'playing' as const,
       currentQuestion: mockQuestions[0],
       currentQuestionIndex: 0,
     };
     
-    setState(prev => ({
-      ...prev,
-      ...newState,
-    }));
-    
-    // Sincronizar com rede
-    if (sendNetworkMessage) {
-      sendNetworkMessage('GAME_STATE_CHANGE', newState);
-    }
+    setState(prev => {
+      const completeState = { ...prev, ...newState };
+      // TV broadcast estado completo para todos
+      if (sendNetworkMessage) {
+        sendNetworkMessage('STATE_SYNC', completeState);
+      }
+      return completeState;
+    });
   };
 
   const buzzIn = (playerId: string) => {
     console.log('Jogador tentando responder:', playerId);
     if (state.gameState === 'playing') {
-      // Enviar via rede
+      // Enviar ação para a TV processar
       if (sendNetworkMessage) {
         sendNetworkMessage('PLAYER_BUZZ', { playerId });
       }
       
-      setState(prev => ({
-        ...prev,
-        gameState: 'buzzing',
-        activePlayer: playerId,
-      }));
+      // Jogadores não mudam estado local - apenas a TV
+      if (isTV) {
+        setState(prev => {
+          const newState = {
+            ...prev,
+            gameState: 'buzzing' as const,
+            activePlayer: playerId,
+          };
+          // TV broadcast estado atualizado
+          if (sendNetworkMessage) {
+            sendNetworkMessage('STATE_SYNC', newState);
+          }
+          return newState;
+        });
+      }
     }
   };
 
   const submitAnswer = (playerId: string, answerIndex: number) => {
-    // Enviar via rede
+    // Enviar resposta para a TV processar
     if (sendNetworkMessage) {
       sendNetworkMessage('PLAYER_ANSWER', { playerId, answerIndex });
     }
     
-    const player = state.players.find(p => p.id === playerId);
-    const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
+    // Apenas a TV processa a resposta e muda o estado
+    if (isTV) {
+      const player = state.players.find(p => p.id === playerId);
+      const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
 
-    if (player && isCorrect) {
-      setState(prev => ({
-        ...prev,
-        players: prev.players.map(p =>
-          p.id === playerId ? { ...p, score: p.score + 10 } : p
-        ),
-        gameState: 'results',
-      }));
-    } else {
-      setState(prev => ({
-        ...prev,
-        gameState: 'results',
-      }));
+      let newState;
+      if (player && isCorrect) {
+        newState = {
+          ...state,
+          players: state.players.map(p =>
+            p.id === playerId ? { ...p, score: p.score + 10 } : p
+          ),
+          gameState: 'results' as const,
+        };
+      } else {
+        newState = {
+          ...state,
+          gameState: 'results' as const,
+        };
+      }
+      
+      setState(newState);
+      
+      // TV broadcast estado atualizado
+      if (sendNetworkMessage) {
+        sendNetworkMessage('STATE_SYNC', newState);
+      }
+
+      // Auto advance after 3 seconds (apenas na TV)
+      setTimeout(() => {
+        nextQuestion();
+      }, 3000);
     }
-
-    // Auto advance after 3 seconds
-    setTimeout(() => {
-      nextQuestion();
-    }, 3000);
   };
 
   const nextQuestion = () => {
+    // Apenas a TV pode avançar questões
+    if (!isTV) return;
+    
     const nextIndex = state.currentQuestionIndex + 1;
     
+    let newState;
     if (nextIndex >= mockQuestions.length) {
-      const newState = {
+      newState = {
+        ...state,
         gameState: 'finished' as const,
         currentQuestion: null,
         activePlayer: null,
       };
-      
-      setState(prev => ({
-        ...prev,
-        ...newState,
-      }));
-      
-      if (sendNetworkMessage) {
-        sendNetworkMessage('GAME_STATE_CHANGE', newState);
-      }
     } else {
-      const newState = {
+      newState = {
+        ...state,
         currentQuestionIndex: nextIndex,
         currentQuestion: mockQuestions[nextIndex],
         gameState: 'playing' as const,
         activePlayer: null,
       };
-      
-      setState(prev => ({
-        ...prev,
-        ...newState,
-      }));
-      
-      if (sendNetworkMessage) {
-        sendNetworkMessage('GAME_STATE_CHANGE', newState);
-      }
+    }
+    
+    setState(newState);
+    
+    // TV broadcast estado completo atualizado
+    if (sendNetworkMessage) {
+      sendNetworkMessage('STATE_SYNC', newState);
     }
   };
 
   const resetGame = () => {
+    // Apenas a TV pode resetar o jogo
+    if (!isTV) return;
+    
     // Limpar cache localStorage
     localStorage.removeItem('quizState');
     localStorage.removeItem('playerId');
@@ -439,24 +483,23 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     lastHeartbeatRef.current = {};
     
     const resetState = {
-      gameState: 'waiting' as const,
+      players: [], // Limpar todos os jogadores para forçar reconexão
       currentQuestion: null,
       currentQuestionIndex: 0,
+      gameState: 'waiting' as const,
       activePlayer: null,
-      players: [], // Limpar todos os jogadores para forçar reconexão
+      totalQuestions: mockQuestions.length,
+      roomCode: 'QUIZ123',
     };
     
-    setState(prev => ({
-      ...prev,
-      ...resetState,
-    }));
+    setState(resetState);
     
-    // Sincronizar reset com todos os dispositivos
+    // TV broadcast estado resetado para todos
     if (sendNetworkMessage) {
-      sendNetworkMessage('GAME_STATE_CHANGE', resetState);
+      sendNetworkMessage('STATE_SYNC', resetState);
     }
     
-    console.log('Jogo resetado - cache limpo, jogadores devem se reconectar');
+    console.log('📺 [QuizContext] TV resetou jogo - estado limpo');
   };
 
   return (
