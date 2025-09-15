@@ -17,8 +17,7 @@ const PlayerView: React.FC = () => {
 
   const handleJoinGame = () => {
     if (playerName.trim()) {
-      addPlayer(playerName.trim());
-      const newPlayerId = Date.now().toString();
+      const newPlayerId = addPlayer(playerName.trim());
       setPlayerId(newPlayerId);
     }
   };

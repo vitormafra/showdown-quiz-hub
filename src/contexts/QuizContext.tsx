@@ -26,13 +26,12 @@ export interface QuizState {
 
 interface QuizContextType {
   state: QuizState;
-  addPlayer: (name: string) => void;
+  addPlayer: (name: string) => string;
   startGame: () => void;
   buzzIn: (playerId: string) => void;
   submitAnswer: (playerId: string, answerIndex: number) => void;
   nextQuestion: () => void;
   resetGame: () => void;
-  startDemo: () => void;
 }
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -72,26 +71,7 @@ const mockQuestions: Question[] = [
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, setState] = useState<QuizState>({
-    players: [
-      {
-        id: 'demo1',
-        name: 'Ana',
-        score: 0,
-        isConnected: true,
-      },
-      {
-        id: 'demo2', 
-        name: 'Carlos',
-        score: 0,
-        isConnected: true,
-      },
-      {
-        id: 'demo3',
-        name: 'Marina',
-        score: 0,
-        isConnected: true,
-      },
-    ],
+    players: [],
     currentQuestion: null,
     currentQuestionIndex: 0,
     gameState: 'waiting',
@@ -112,6 +92,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ...prev,
       players: [...prev.players, newPlayer],
     }));
+
+    return newPlayer.id;
   };
 
   const startGame = () => {
@@ -190,39 +172,6 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   };
 
-  const startDemo = () => {
-    startGame();
-    
-    // Simulate automatic gameplay
-    setTimeout(() => {
-      const demoPlayers = ['demo1', 'demo2', 'demo3'];
-      let currentQuestionIdx = 0;
-      
-      const playRound = () => {
-        if (currentQuestionIdx >= mockQuestions.length) return;
-        
-        // Random player buzzes in
-        const randomPlayer = demoPlayers[Math.floor(Math.random() * demoPlayers.length)];
-        buzzIn(randomPlayer);
-        
-        setTimeout(() => {
-          // Random answer (sometimes correct, sometimes wrong)
-          const correctAnswer = mockQuestions[currentQuestionIdx].correctAnswer;
-          const randomAnswer = Math.random() < 0.7 ? correctAnswer : Math.floor(Math.random() * 4);
-          
-          submitAnswer(randomPlayer, randomAnswer);
-          currentQuestionIdx++;
-          
-          if (currentQuestionIdx < mockQuestions.length) {
-            setTimeout(playRound, 4000);
-          }
-        }, 2000);
-      };
-      
-      playRound();
-    }, 1000);
-  };
-
   return (
     <QuizContext.Provider
       value={{
@@ -233,7 +182,6 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         submitAnswer,
         nextQuestion,
         resetGame,
-        startDemo,
       }}
     >
       {children}
