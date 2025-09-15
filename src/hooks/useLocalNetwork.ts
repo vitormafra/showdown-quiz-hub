@@ -15,18 +15,114 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isConnectedRef = useRef(false);
+  
+  // Configurações adaptáveis de reconexão
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 10;
+  const baseReconnectDelay = 5000; // 5s inicial
+  const maxReconnectDelay = 30000; // 30s máximo
+  
+  // Estado de qualidade da conexão
+  const connectionQualityRef = useRef<'good' | 'unstable' | 'poor'>('good');
+  const lastMessageTimestamp = useRef(Date.now());
+  const messageBuffer = useRef<NetworkMessage[]>([]);
+  const isReconnectingRef = useRef(false);
 
   // Salvar deviceId no localStorage
   useEffect(() => {
     localStorage.setItem('deviceId', deviceId.current);
   }, []);
 
+  // Função para calcular delay de reconexão com backoff exponencial
+  const getReconnectDelay = () => {
+    const delay = Math.min(
+      baseReconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current),
+      maxReconnectDelay
+    );
+    return delay + Math.random() * 1000; // Jitter para evitar reconexões simultâneas
+  };
+
+  // Função para verificar qualidade da conexão
+  const updateConnectionQuality = () => {
+    const now = Date.now();
+    const timeSinceLastMessage = now - lastMessageTimestamp.current;
+    
+    if (timeSinceLastMessage < 10000) {
+      connectionQualityRef.current = 'good';
+    } else if (timeSinceLastMessage < 30000) {
+      connectionQualityRef.current = 'unstable';
+    } else {
+      connectionQualityRef.current = 'poor';
+    }
+  };
+
+  // Função para verificar se servidor está disponível
+  const checkServerAvailability = async (url: string): Promise<boolean> => {
+    try {
+      // Tentar uma conexão rápida para verificar disponibilidade
+      const testWs = new WebSocket(url);
+      
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          testWs.close();
+          resolve(false);
+        }, 3000);
+        
+        testWs.onopen = () => {
+          clearTimeout(timeout);
+          testWs.close();
+          resolve(true);
+        };
+        
+        testWs.onerror = () => {
+          clearTimeout(timeout);
+          resolve(false);
+        };
+      });
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     // Configuração automática de rede
     const networkConfig = logNetworkInfo();
 
+    // Função de reconexão inteligente
+    const attemptReconnect = async () => {
+      if (isReconnectingRef.current || reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          console.log('🚫 [useLocalNetwork] Máximo de tentativas de reconexão atingido, usando fallback');
+          setupBroadcastChannel();
+        }
+        return;
+      }
+
+      isReconnectingRef.current = true;
+      reconnectAttemptsRef.current++;
+      
+      const delay = getReconnectDelay();
+      console.log(`🔄 [useLocalNetwork] Tentativa ${reconnectAttemptsRef.current}/${maxReconnectAttempts} em ${Math.round(delay/1000)}s`);
+      
+      // Verificar se servidor está disponível antes de tentar reconectar
+      const isAvailable = await checkServerAvailability(networkConfig.websocketUrl);
+      if (!isAvailable) {
+        console.log('🚫 [useLocalNetwork] Servidor não disponível, usando fallback');
+        setupBroadcastChannel();
+        isReconnectingRef.current = false;
+        return;
+      }
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        isReconnectingRef.current = false;
+        connectWebSocket();
+      }, delay);
+    };
+
     // Tentar conectar via WebSocket primeiro (para comunicação entre dispositivos)
     const connectWebSocket = () => {
+      if (isReconnectingRef.current) return;
+      
       try {
         const wsUrl = networkConfig.websocketUrl;
         
@@ -37,6 +133,21 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
         wsRef.current.onopen = () => {
           console.log('✅ [useLocalNetwork] WebSocket conectado com sucesso!');
           isConnectedRef.current = true;
+          isReconnectingRef.current = false;
+          reconnectAttemptsRef.current = 0; // Reset contador de tentativas
+          connectionQualityRef.current = 'good';
+          lastMessageTimestamp.current = Date.now();
+          
+          // Processar mensagens em buffer (se houver)
+          if (messageBuffer.current.length > 0) {
+            console.log(`📤 [useLocalNetwork] Enviando ${messageBuffer.current.length} mensagens em buffer`);
+            messageBuffer.current.forEach(msg => {
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify(msg));
+              }
+            });
+            messageBuffer.current = [];
+          }
           
           // Solicitar sincronização ao conectar após um pequeno delay
           setTimeout(() => {
@@ -47,6 +158,9 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
         };
 
         wsRef.current.onmessage = (event) => {
+          lastMessageTimestamp.current = Date.now();
+          updateConnectionQuality();
+          
           try {
             // Verificar se é um Blob e converter para texto
             if (event.data instanceof Blob) {
@@ -57,11 +171,10 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
                   
                   // Ignorar mensagens do próprio dispositivo
                   if (message.deviceId === deviceId.current) {
-                    console.log('🚫 [useLocalNetwork] Ignorando mensagem própria via WS:', message.type);
                     return;
                   }
                   
-                  console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida:', message.type, message);
+                  console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida:', message.type);
                   onMessage(message);
                 } catch (error) {
                   console.error('❌ [useLocalNetwork] Erro ao processar mensagem WebSocket (Blob):', error);
@@ -74,11 +187,10 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
               
               // Ignorar mensagens do próprio dispositivo
               if (message.deviceId === deviceId.current) {
-                console.log('🚫 [useLocalNetwork] Ignorando mensagem própria via WS:', message.type);
                 return;
               }
               
-              console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida:', message.type, message);
+              console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida:', message.type);
               onMessage(message);
             }
           } catch (error) {
@@ -90,19 +202,22 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
           console.log('🔌 [useLocalNetwork] WebSocket desconectado');
           isConnectedRef.current = false;
           
-          // Tentar reconectar após 5 segundos (mais tempo para evitar reconexões frequentes)
-          reconnectTimeoutRef.current = setTimeout(() => {
-            console.log('🔄 [useLocalNetwork] Tentando reconectar WebSocket...');
-            connectWebSocket();
-          }, 5000);
+          // Tentar reconexão inteligente apenas se não for fechamento manual
+          if (!isReconnectingRef.current) {
+            console.log('🔄 [useLocalNetwork] Iniciando reconexão inteligente...');
+            attemptReconnect();
+          }
         };
 
         wsRef.current.onerror = (error) => {
           console.error('❌ [useLocalNetwork] Erro WebSocket:', error);
           isConnectedRef.current = false;
           
-          // Tentar usar BroadcastChannel como fallback
-          setupBroadcastChannel();
+          // Usar BroadcastChannel como fallback para erros críticos
+          if (reconnectAttemptsRef.current >= 3) {
+            console.log('📡 [useLocalNetwork] Muitas falhas, usando BroadcastChannel como fallback');
+            setupBroadcastChannel();
+          }
         };
 
       } catch (error) {
@@ -118,13 +233,14 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
         channelRef.current = new BroadcastChannel('quiz-game');
         
         const handleMessage = (event: MessageEvent<NetworkMessage>) => {
+          lastMessageTimestamp.current = Date.now();
+          
           // Ignorar mensagens do próprio dispositivo
           if (event.data.deviceId === deviceId.current) {
-            console.log('🚫 [useLocalNetwork] Ignorando mensagem própria via BC:', event.data.type);
             return;
           }
           
-          console.log('📨 [useLocalNetwork] Mensagem BroadcastChannel recebida:', event.data.type, event.data);
+          console.log('📨 [useLocalNetwork] Mensagem BroadcastChannel recebida:', event.data.type);
           onMessage(event.data);
         };
 
@@ -142,11 +258,45 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     // Iniciar WebSocket
     connectWebSocket();
 
-    // Configurar heartbeat se for um jogador (menos frequente para reduzir "piscadas")
+    // Configurar heartbeat adaptável baseado na qualidade da conexão
     if (playerId) {
-      heartbeatIntervalRef.current = setInterval(() => {
-        sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
-      }, 8000); // Heartbeat a cada 8 segundos (menos agressivo)
+      const startHeartbeat = () => {
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+        }
+        
+        // Interval baseado na qualidade da conexão
+        const getHeartbeatInterval = () => {
+          switch (connectionQualityRef.current) {
+            case 'good': return 15000; // 15s para conexão boa
+            case 'unstable': return 10000; // 10s para conexão instável  
+            case 'poor': return 5000; // 5s para conexão ruim
+            default: return 15000;
+          }
+        };
+        
+        const updateHeartbeat = () => {
+          const interval = getHeartbeatInterval();
+          heartbeatIntervalRef.current = setTimeout(() => {
+            sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
+            updateHeartbeat(); // Reagendar baseado na qualidade atual
+          }, interval);
+        };
+        
+        updateHeartbeat();
+      };
+      
+      startHeartbeat();
+      
+      // Monitorar qualidade da conexão a cada 30 segundos
+      const qualityCheckInterval = setInterval(() => {
+        updateConnectionQuality();
+      }, 30000);
+      
+      // Cleanup do intervalo de qualidade
+      return () => {
+        clearInterval(qualityCheckInterval);
+      };
     }
 
     return () => {
@@ -154,6 +304,9 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
       if (playerId) {
         sendMessage('PLAYER_DISCONNECT', { playerId });
       }
+      
+      // Parar reconexões
+      isReconnectingRef.current = false;
       
       // Limpar timeouts e intervals
       if (heartbeatIntervalRef.current) {
@@ -173,6 +326,7 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     };
   }, [onMessage, playerId]);
 
+  // Função de envio de mensagem com buffer e retry
   const sendMessage = (type: NetworkMessage['type'], data: any) => {
     const message: NetworkMessage = {
       type,
@@ -181,25 +335,57 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
       deviceId: deviceId.current,
     };
     
-    console.log('📤 [useLocalNetwork] Enviando:', message.type, message);
+    // Mensagens críticas que devem ser priorizadas
+    const criticalMessages = ['PLAYER_BUZZ', 'PLAYER_ANSWER', 'STATE_SYNC'];
+    const isCritical = criticalMessages.includes(type);
+    
+    console.log(`📤 [useLocalNetwork] Enviando${isCritical ? ' (CRÍTICA)' : ''}:`, message.type);
     
     // Tentar enviar via WebSocket primeiro
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
-      console.log('✅ [useLocalNetwork] Enviado via WebSocket');
-      return true;
-    } 
-    // Fallback para BroadcastChannel
-    else if (channelRef.current) {
-      channelRef.current.postMessage(message);
-      console.log('✅ [useLocalNetwork] Enviado via BroadcastChannel');
-      return true;
-    } 
-    else {
-      console.error('❌ [useLocalNetwork] Nenhum canal disponível para enviar:', type);
-      return false;
+      try {
+        wsRef.current.send(JSON.stringify(message));
+        console.log('✅ [useLocalNetwork] Enviado via WebSocket');
+        return true;
+      } catch (error) {
+        console.error('❌ [useLocalNetwork] Erro ao enviar via WebSocket:', error);
+      }
     }
+    
+    // Fallback para BroadcastChannel
+    if (channelRef.current) {
+      try {
+        channelRef.current.postMessage(message);
+        console.log('✅ [useLocalNetwork] Enviado via BroadcastChannel');
+        return true;
+      } catch (error) {
+        console.error('❌ [useLocalNetwork] Erro ao enviar via BroadcastChannel:', error);
+      }
+    }
+    
+    // Buffer para mensagens críticas se nenhum canal estiver disponível
+    if (isCritical && messageBuffer.current.length < 10) {
+      messageBuffer.current.push(message);
+      console.log('📦 [useLocalNetwork] Mensagem crítica adicionada ao buffer');
+      return true;
+    }
+    
+    console.error('❌ [useLocalNetwork] Nenhum canal disponível para enviar:', type);
+    return false;
   };
 
-  return { sendMessage, deviceId: deviceId.current };
+  // Status da conexão para debugging
+  const getConnectionStatus = () => ({
+    isConnected: isConnectedRef.current,
+    quality: connectionQualityRef.current,
+    reconnectAttempts: reconnectAttemptsRef.current,
+    bufferedMessages: messageBuffer.current.length,
+    isReconnecting: isReconnectingRef.current,
+  });
+
+  return { 
+    sendMessage, 
+    deviceId: deviceId.current,
+    connectionStatus: getConnectionStatus()
+  };
 };

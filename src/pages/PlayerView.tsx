@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuiz } from '@/contexts/QuizContext';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { useLocalNetwork } from '@/hooks/useLocalNetwork';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,7 +11,7 @@ import QuizLogo from '@/components/QuizLogo';
 import { Smartphone, Zap, CheckCircle, XCircle } from 'lucide-react';
 
 const PlayerView: React.FC = () => {
-  const { state, addPlayer, buzzIn, submitAnswer } = useQuiz();
+  const { state, addPlayer, buzzIn, submitAnswer, connectionStatus } = useQuiz();
   const [playerName, setPlayerName] = useState('');
   const [playerId, setPlayerId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -170,10 +171,11 @@ const PlayerView: React.FC = () => {
               Entrar no Jogo
             </Button>
 
-            <div className="text-center">
+            <div className="text-center space-y-3">
               <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
                 Sala: {state.roomCode} | Rede WiFi Local
               </Badge>
+              <ConnectionStatus status={connectionStatus} compact />
             </div>
           </div>
         </Card>
@@ -191,9 +193,12 @@ const PlayerView: React.FC = () => {
             <div className="w-3 h-3 bg-quiz-success rounded-full animate-pulse-slow"></div>
             <span className="text-white font-semibold">Conectado como {currentPlayer.name}</span>
           </div>
-          <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
-            {currentPlayer.score} pontos
-          </Badge>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
+              {currentPlayer.score} pontos
+            </Badge>
+            <ConnectionStatus status={connectionStatus} compact />
+          </div>
         </div>
 
         {/* Waiting State */}

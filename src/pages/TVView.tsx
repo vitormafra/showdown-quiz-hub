@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuiz } from '@/contexts/QuizContext';
+import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,7 @@ import QuizLogo from '@/components/QuizLogo';
 import { QrCode, Trophy, Users, PlayCircle, SkipForward, UserCircle } from 'lucide-react';
 
 const TVView: React.FC = () => {
-  const { state, startGame, nextQuestion, resetGame } = useQuiz();
+  const { state, startGame, nextQuestion, resetGame, connectionStatus } = useQuiz();
 
   const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
   const activePlayerName = state.activePlayer 
@@ -26,15 +27,18 @@ const TVView: React.FC = () => {
         {/* Header Simplificado */}
         <div className="flex justify-between items-center mb-8">
           <QuizLogo />
-          {state.gameState !== 'waiting' && (
-            <Button 
-              onClick={resetGame} 
-              variant="outline" 
-              className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
-            >
-              🔄 Reset Completo
-            </Button>
-          )}
+          <div className="flex items-center gap-4">
+            <ConnectionStatus status={connectionStatus} compact />
+            {state.gameState !== 'waiting' && (
+              <Button 
+                onClick={resetGame} 
+                variant="outline" 
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                🔄 Reset Completo
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Waiting State */}

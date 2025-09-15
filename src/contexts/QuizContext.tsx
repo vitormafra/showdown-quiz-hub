@@ -33,6 +33,13 @@ interface QuizContextType {
   submitAnswer: (playerId: string, answerIndex: number) => void;
   nextQuestion: () => void;
   resetGame: () => void;
+  connectionStatus: {
+    isConnected: boolean;
+    quality: 'good' | 'unstable' | 'poor';
+    reconnectAttempts: number;
+    bufferedMessages: number;
+    isReconnecting: boolean;
+  };
 }
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -254,7 +261,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [isTV]);  // Depender apenas de isTV
 
   // Inicializar network
-  const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
+  const { sendMessage: sendNetworkMessage, connectionStatus } = useLocalNetwork(handleNetworkMessage);
 
   // Monitor heartbeats - apenas a TV faz isso
   useEffect(() => {
@@ -512,6 +519,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         submitAnswer,
         nextQuestion,
         resetGame,
+        connectionStatus,
       }}
     >
       {children}
