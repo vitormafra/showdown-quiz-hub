@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import QuizLogo from '@/components/QuizLogo';
 import { Smartphone, Zap, CheckCircle, XCircle } from 'lucide-react';
+import { withErrorBoundary, safeLocalStorage } from '@/utils/errorBoundary';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const PlayerView: React.FC = () => {
   const { state, addPlayer, buzzIn, submitAnswer, connectionStatus } = useQuiz();
@@ -16,7 +18,9 @@ const PlayerView: React.FC = () => {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const currentPlayer = playerId ? state.players.find(p => p.id === playerId) : null;
+  // Verificação mais segura do jogador atual
+  const currentPlayer = playerId && Array.isArray(state.players) ? 
+    state.players.find(p => p?.id === playerId) : null;
   const isActivePlayer = state.activePlayer === playerId;
 
   // Configurar rede local com heartbeat se jogador estiver conectado
@@ -24,54 +28,64 @@ const PlayerView: React.FC = () => {
     console.log('📨 [PlayerView] Mensagem recebida:', message);
   }, playerId || undefined);
 
-  // Auto-recuperar dados salvos
+  // Auto-recuperar dados salvos com proteção contra erro
   useEffect(() => {
-    console.log('🔍 [PlayerView] Verificando dados salvos...');
-    const savedPlayerId = localStorage.getItem('playerId');
-    const savedPlayerName = localStorage.getItem('playerName');
-    const savedDeviceId = localStorage.getItem('deviceId');
-    
-    console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName, savedDeviceId });
-    console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
-    
-    if (savedPlayerId && savedPlayerName && savedDeviceId === deviceId) {
-      // Verificar se o jogador ainda existe no estado
-      const existingPlayer = state.players.find(p => p.id === savedPlayerId);
-      if (existingPlayer) {
-        console.log('✅ [PlayerView] Jogador reconectado automaticamente:', savedPlayerName);
-        setPlayerId(savedPlayerId);
-        setPlayerName(savedPlayerName);
-        
-        // Enviar mensagem de reconexão
-        setTimeout(() => {
-          sendMessage('PLAYER_JOINED', {
-            id: savedPlayerId,
-            name: savedPlayerName,
-            score: existingPlayer.score || 0,
-            isConnected: true
-          });
-        }, 100);
+    try {
+      console.log('🔍 [PlayerView] Verificando dados salvos...');
+      const savedPlayerId = safeLocalStorage.getItem('playerId');
+      const savedPlayerName = safeLocalStorage.getItem('playerName');
+      const savedDeviceId = safeLocalStorage.getItem('deviceId');
+      
+      console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName, savedDeviceId });
+      console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
+      
+      if (savedPlayerId && savedPlayerName && savedDeviceId === deviceId) {
+        // Verificar se o jogador ainda existe no estado
+        const existingPlayer = state.players.find(p => p?.id === savedPlayerId);
+        if (existingPlayer) {
+          console.log('✅ [PlayerView] Jogador reconectado automaticamente:', savedPlayerName);
+          setPlayerId(savedPlayerId);
+          setPlayerName(savedPlayerName);
+          
+          // Enviar mensagem de reconexão com verificação
+          setTimeout(() => {
+            if (sendMessage) {
+              sendMessage('PLAYER_JOINED', {
+                id: savedPlayerId,
+                name: savedPlayerName,
+                score: existingPlayer.score || 0,
+                isConnected: true
+              });
+            }
+          }, 500);
+        } else {
+          console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
+          safeLocalStorage.removeItem('playerId');
+          safeLocalStorage.removeItem('playerName');
+          safeLocalStorage.removeItem('deviceId');
+        }
       } else {
-        console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
-        localStorage.removeItem('playerId');
-        localStorage.removeItem('playerName');
-        localStorage.removeItem('deviceId');
+        console.log('🆕 [PlayerView] Nenhum dado salvo encontrado ou deviceId diferente');
       }
-    } else {
-      console.log('🆕 [PlayerView] Nenhum dado salvo encontrado ou deviceId diferente');
+    } catch (error) {
+      console.error('❌ [PlayerView] Erro ao recuperar dados salvos:', error);
+      // Limpar dados corrompidos
+      safeLocalStorage.removeItem('playerId');
+      safeLocalStorage.removeItem('playerName');
+      safeLocalStorage.removeItem('deviceId');
     }
   }, [state.players, deviceId, sendMessage]);
 
-  // Salvar dados do jogador quando conectar
+  // Salvar dados do jogador quando conectar com proteção
   useEffect(() => {
     if (playerId && playerName) {
-      localStorage.setItem('playerId', playerId);
-      localStorage.setItem('playerName', playerName);
-      localStorage.setItem('deviceId', deviceId);
+      safeLocalStorage.setItem('playerId', playerId);
+      safeLocalStorage.setItem('playerName', playerName);
+      safeLocalStorage.setItem('deviceId', deviceId);
     }
   }, [playerId, playerName, deviceId]);
 
-  const handleJoinGame = () => {
+  const handleJoinGame = withErrorBoundary(() => {
     if (!playerName.trim()) {
       toast({
         title: "Erro",
@@ -83,9 +97,20 @@ const PlayerView: React.FC = () => {
 
     console.log('🎮 [PlayerView] Tentando entrar no jogo como:', playerName.trim(), 'com deviceId:', deviceId);
     
+    // Verificação mais segura do array de jogadores
+    if (!Array.isArray(state.players)) {
+      console.error('❌ [PlayerView] state.players não é um array:', state.players);
+      toast({
+        title: "Erro",
+        description: "Erro no estado do jogo. Tente recarregar a página.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     // Verificar se já existe um jogador com esse nome
     const existingPlayer = state.players.find(p => 
-      p.name.toLowerCase() === playerName.trim().toLowerCase()
+      p?.name?.toLowerCase() === playerName.trim().toLowerCase()
     );
     
     if (existingPlayer) {
@@ -95,35 +120,45 @@ const PlayerView: React.FC = () => {
       
       // Aguardar a atualização do estado antes de enviar a mensagem
       setTimeout(() => {
-        sendMessage('PLAYER_JOINED', {
-          id: existingPlayer.id,
-          name: existingPlayer.name,
-          score: existingPlayer.score || 0,
-          isConnected: true
-        });
+        if (sendMessage) {
+          sendMessage('PLAYER_JOINED', {
+            id: existingPlayer.id,
+            name: existingPlayer.name,
+            score: existingPlayer.score || 0,
+            isConnected: true
+          });
+        }
       }, 100);
     } else {
       // Criar novo jogador com ID único
-      const newPlayerId = `player_${Date.now()}`;
+      const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       console.log('✨ [PlayerView] Criando novo jogador:', { id: newPlayerId, name: playerName.trim() });
       
       setPlayerId(newPlayerId);
       
       // Aguardar a atualização do estado antes de enviar a mensagem
       setTimeout(() => {
-        sendMessage('PLAYER_JOINED', {
-          id: newPlayerId,
-          name: playerName.trim(),
-          score: 0,
-          isConnected: true
-        });
-        console.log('✅ [PlayerView] Novo jogador enviado com ID:', newPlayerId);
-        
-        // Adicionar jogador localmente também
-        addPlayer(playerName.trim(), newPlayerId);
+        if (sendMessage && addPlayer) {
+          sendMessage('PLAYER_JOINED', {
+            id: newPlayerId,
+            name: playerName.trim(),
+            score: 0,
+            isConnected: true
+          });
+          console.log('✅ [PlayerView] Novo jogador enviado com ID:', newPlayerId);
+          
+          // Adicionar jogador localmente também
+          addPlayer(playerName.trim(), newPlayerId);
+        }
       }, 100);
     }
-  };
+  }, () => {
+    toast({
+      title: "Erro",
+      description: "Não foi possível entrar no jogo. Tente novamente.",
+      variant: "destructive"
+    });
+  });
 
   const handleBuzzIn = () => {
     if (playerId && state.gameState === 'playing') {
@@ -184,8 +219,9 @@ const PlayerView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen quiz-gradient-bg p-4">
-      <div className="max-w-md mx-auto">
+    <ErrorBoundary>
+      <div className="min-h-screen quiz-gradient-bg p-4">
+        <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-6">
           <QuizLogo className="justify-center mb-4" />
@@ -338,8 +374,9 @@ const PlayerView: React.FC = () => {
             </div>
           </Card>
         )}
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

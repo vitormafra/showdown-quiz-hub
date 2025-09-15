@@ -167,23 +167,49 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
               const reader = new FileReader();
               reader.onload = () => {
                 try {
-                  const message = JSON.parse(reader.result as string) as NetworkMessage;
+                  const result = reader.result as string;
+                  if (!result || result.trim() === '') {
+                    console.warn('⚠️ [useLocalNetwork] Mensagem Blob vazia ignorada');
+                    return;
+                  }
+                  
+                  const message = JSON.parse(result) as NetworkMessage;
+                  
+                  // Verificação de segurança da mensagem
+                  if (!message || !message.type || !message.deviceId) {
+                    console.warn('⚠️ [useLocalNetwork] Mensagem Blob inválida ignorada:', message);
+                    return;
+                  }
                   
                   // Ignorar mensagens do próprio dispositivo
                   if (message.deviceId === deviceId.current) {
                     return;
                   }
                   
-                  console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida:', message.type);
+                  console.log('📨 [useLocalNetwork] Mensagem WebSocket recebida (Blob):', message.type);
                   onMessage(message);
                 } catch (error) {
                   console.error('❌ [useLocalNetwork] Erro ao processar mensagem WebSocket (Blob):', error);
                 }
               };
+              reader.onerror = () => {
+                console.error('❌ [useLocalNetwork] Erro ao ler Blob');
+              };
               reader.readAsText(event.data);
             } else {
               // Processar como texto normal
+              if (!event.data || event.data.trim() === '') {
+                console.warn('⚠️ [useLocalNetwork] Mensagem vazia ignorada');
+                return;
+              }
+              
               const message = JSON.parse(event.data) as NetworkMessage;
+              
+              // Verificação de segurança da mensagem
+              if (!message || !message.type || !message.deviceId) {
+                console.warn('⚠️ [useLocalNetwork] Mensagem inválida ignorada:', message);
+                return;
+              }
               
               // Ignorar mensagens do próprio dispositivo
               if (message.deviceId === deviceId.current) {
@@ -195,6 +221,7 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
             }
           } catch (error) {
             console.error('❌ [useLocalNetwork] Erro ao processar mensagem WebSocket:', error);
+            // Não quebrar a aplicação por erro de mensagem
           }
         };
 

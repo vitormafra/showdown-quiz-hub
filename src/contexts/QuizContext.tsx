@@ -102,10 +102,17 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
+    // Verificação de segurança para evitar crashes
+    if (!message || !message.type) {
+      console.warn('⚠️ [QuizContext] Mensagem inválida ignorada:', message);
+      return;
+    }
+
     console.log('📡 [QuizContext] Processando mensagem:', message.type, message);
     console.log('🌍 [QuizContext] Rota atual:', window.location.pathname, 'isTV:', isTV);
     
-    switch (message.type) {
+    try {
+      switch (message.type) {
       case 'PLAYER_JOINED':
         // Apenas a TV processa entrada de jogadores
         if (isTV) {
@@ -244,12 +251,34 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       case 'STATE_SYNC':
         // Jogadores recebem estado completo da TV (com verificação de timestamp)
         if (!isTV && message.data) {
+          // Verificação de segurança para evitar crashes
+          if (typeof message.data !== 'object') {
+            console.warn('⚠️ [QuizContext] Dados de sincronização inválidos');
+            break;
+          }
+
           const messageTimestamp = message.data.timestamp || 0;
           
-          // Aceitar apenas se for mais recente
-          if (messageTimestamp > lastSyncRef.current) {
-            console.log('🔄 [QuizContext] Jogador sincronizando com TV:', message.data);
-            setState(message.data);
+          // Verificação mais flexível de timestamp para evitar dessincronização
+          const timeDiff = messageTimestamp - lastSyncRef.current;
+          const shouldSync = timeDiff > -5000; // Aceitar se não for muito antigo (5s)
+          
+          if (shouldSync) {
+            console.log('🔄 [QuizContext] Jogador sincronizando com TV:', {
+              messageTimestamp,
+              lastSync: lastSyncRef.current,
+              timeDiff
+            });
+            
+            // Garantir que o estado seja válido antes de aplicar
+            const validatedState = {
+              ...message.data,
+              players: Array.isArray(message.data.players) ? message.data.players : [],
+              gameState: message.data.gameState || 'waiting',
+              currentQuestionIndex: message.data.currentQuestionIndex || 0
+            };
+            
+            setState(validatedState);
             lastSyncRef.current = messageTimestamp;
             
             // Limpar timeout de sincronização pendente
@@ -258,7 +287,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               syncTimeoutRef.current = null;
             }
           } else {
-            console.log('⏭️ [QuizContext] Ignorando sincronização antiga');
+            console.log('⏭️ [QuizContext] Ignorando sincronização muito antiga:', timeDiff);
           }
         }
         break;
@@ -288,6 +317,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }, 1000);
         }
         break;
+        
+      default:
+        console.log('🔄 [QuizContext] Tipo de mensagem não reconhecido:', message.type);
+        break;
+    }
+    } catch (error) {
+      console.error('❌ [QuizContext] Erro ao processar mensagem:', error, message);
+      // Não quebrar a aplicação por erro de mensagem
     }
   }, [isTV]);
 
