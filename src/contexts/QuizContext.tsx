@@ -27,7 +27,7 @@ export interface QuizState {
 
 interface QuizContextType {
   state: QuizState;
-  addPlayer: (name: string) => string;
+  addPlayer: (name: string, customId?: string) => string;
   startGame: () => void;
   buzzIn: (playerId: string) => void;
   submitAnswer: (playerId: string, answerIndex: number) => void;
@@ -251,9 +251,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('quizState', JSON.stringify(state));
   }, [state]);
 
-  const addPlayer = (name: string) => {
+  const addPlayer = (name: string, customId?: string) => {
     const newPlayer: Player = {
-      id: Date.now().toString(),
+      id: customId || `player_${Date.now()}`,
       name,
       score: 0,
       isConnected: true,

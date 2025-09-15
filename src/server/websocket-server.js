@@ -1,14 +1,16 @@
-const WebSocket = require('ws');
+import { WebSocketServer } from 'ws';
 
 // Criar servidor WebSocket no IP específico porta 8081
-const wss = new WebSocket.Server({ 
+const wss = new WebSocketServer({ 
   port: 8081,
-  host: '192.168.0.14' // IP específico da rede
+  host: '0.0.0.0' // Aceitar conexões de qualquer IP
 });
+
+let deviceIdMap = new Map(); // Mapear conexões para deviceIds
 
 let connectedClients = new Set();
 
-console.log('🚀 Quiz WebSocket Server rodando em 192.168.0.14:8081');
+console.log('🚀 Quiz WebSocket Server rodando na porta 8081');
 console.log('📡 Aguardando conexões de dispositivos...');
 
 wss.on('connection', function connection(ws, req) {
@@ -21,13 +23,19 @@ wss.on('connection', function connection(ws, req) {
   ws.on('message', function incoming(data) {
     try {
       const message = JSON.parse(data);
-      console.log(`📨 Mensagem recebida de ${clientIP}:`, message.type);
+      console.log(`📨 [Server] Mensagem recebida:`, message);
+      
+      // Associar deviceId à conexão
+      if (message.deviceId) {
+        deviceIdMap.set(ws, message.deviceId);
+        console.log(`🔗 [Server] Associando deviceId: ${message.deviceId}`);
+      }
       
       // Retransmitir para todos os outros clientes conectados
       connectedClients.forEach(client => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
+        if (client !== ws && client.readyState === 1) { // WebSocket.OPEN = 1
           client.send(data);
-          console.log(`📤 Retransmitindo para outro dispositivo:`, message.type);
+          console.log(`📤 [Server] Retransmitindo para outro dispositivo:`, message.type);
         }
       });
     } catch (error) {
@@ -38,13 +46,30 @@ wss.on('connection', function connection(ws, req) {
   // Quando cliente desconectar
   ws.on('close', function close() {
     console.log(`📱 Cliente desconectado: ${clientIP}`);
+    
+    // Remover deviceId associado
+    if (deviceIdMap.has(ws)) {
+      const deviceId = deviceIdMap.get(ws);
+      console.log(`🗑️ [Server] Removendo deviceId: ${deviceId}`);
+      deviceIdMap.delete(ws);
+    }
+    
     connectedClients.delete(ws);
+    
+    // Mostrar clientes conectados
+    console.log(`👥 Clientes conectados (${connectedClients.size}):`, 
+      Array.from(deviceIdMap.values()));
   });
 
   // Tratar erros
   ws.on('error', function error(err) {
-    console.error('❌ Erro WebSocket:', err);
+    console.error('❌ [Server] Erro WebSocket:', err);
     connectedClients.delete(ws);
+    
+    // Remover deviceId associado
+    if (deviceIdMap.has(ws)) {
+      deviceIdMap.delete(ws);
+    }
   });
 
   // Enviar mensagem de boas-vindas
@@ -56,5 +81,5 @@ wss.on('connection', function connection(ws, req) {
   }));
 });
 
-console.log('🌐 Para acessar de outros dispositivos: ws://192.168.0.14:8081');
-console.log('💡 Use "node src/server/websocket-server.js" para iniciar');
+console.log('🌐 Para acessar de outros dispositivos: ws://SEU_IP:8081');
+console.log('💡 Use "node --experimental-modules src/server/websocket-server.js" para iniciar');

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import QuizLogo from '@/components/QuizLogo';
 import { Smartphone, Zap, CheckCircle, XCircle } from 'lucide-react';
 
@@ -12,68 +13,114 @@ const PlayerView: React.FC = () => {
   const { state, addPlayer, buzzIn, submitAnswer } = useQuiz();
   const [playerName, setPlayerName] = useState('');
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const currentPlayer = playerId ? state.players.find(p => p.id === playerId) : null;
   const isActivePlayer = state.activePlayer === playerId;
 
   // Configurar rede local com heartbeat se jogador estiver conectado
-  const { } = useLocalNetwork(() => {}, playerId || undefined);
+  const { sendMessage, deviceId } = useLocalNetwork((message) => {
+    console.log('📨 [PlayerView] Mensagem recebida:', message);
+  }, playerId || undefined);
 
   // Auto-recuperar dados salvos
   useEffect(() => {
     console.log('🔍 [PlayerView] Verificando dados salvos...');
     const savedPlayerId = localStorage.getItem('playerId');
     const savedPlayerName = localStorage.getItem('playerName');
+    const savedDeviceId = localStorage.getItem('deviceId');
     
-    console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName });
+    console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName, savedDeviceId });
     console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
     
-    if (savedPlayerId && savedPlayerName) {
+    if (savedPlayerId && savedPlayerName && savedDeviceId === deviceId) {
       // Verificar se o jogador ainda existe no estado
       const existingPlayer = state.players.find(p => p.id === savedPlayerId);
       if (existingPlayer) {
         console.log('✅ [PlayerView] Jogador reconectado automaticamente:', savedPlayerName);
         setPlayerId(savedPlayerId);
         setPlayerName(savedPlayerName);
+        
+        // Enviar mensagem de reconexão
+        setTimeout(() => {
+          sendMessage('PLAYER_JOINED', {
+            id: savedPlayerId,
+            name: savedPlayerName,
+            score: existingPlayer.score || 0,
+            isConnected: true
+          });
+        }, 100);
       } else {
         console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
-        // Player não existe mais, limpar dados salvos
         localStorage.removeItem('playerId');
         localStorage.removeItem('playerName');
+        localStorage.removeItem('deviceId');
       }
     } else {
-      console.log('🆕 [PlayerView] Nenhum dado salvo encontrado');
+      console.log('🆕 [PlayerView] Nenhum dado salvo encontrado ou deviceId diferente');
     }
-  }, [state.players]);
+  }, [state.players, deviceId, sendMessage]);
 
   // Salvar dados do jogador quando conectar
   useEffect(() => {
     if (playerId && playerName) {
       localStorage.setItem('playerId', playerId);
       localStorage.setItem('playerName', playerName);
+      localStorage.setItem('deviceId', deviceId);
     }
-  }, [playerId, playerName]);
+  }, [playerId, playerName, deviceId]);
 
   const handleJoinGame = () => {
-    if (playerName.trim()) {
-      console.log('🎮 [PlayerView] Tentando entrar no jogo como:', playerName.trim());
+    if (!playerName.trim()) {
+      toast({
+        title: "Erro",
+        description: "Digite seu nome para jogar!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    console.log('🎮 [PlayerView] Tentando entrar no jogo como:', playerName.trim(), 'com deviceId:', deviceId);
+    
+    // Verificar se já existe um jogador com esse nome
+    const existingPlayer = state.players.find(p => 
+      p.name.toLowerCase() === playerName.trim().toLowerCase()
+    );
+    
+    if (existingPlayer) {
+      // Reconectar como jogador existente
+      console.log('🔄 [PlayerView] Reconectando como jogador existente:', existingPlayer);
+      setPlayerId(existingPlayer.id);
       
-      // Verificar se já existe um jogador com esse nome
-      const existingPlayer = state.players.find(p => 
-        p.name.toLowerCase() === playerName.trim().toLowerCase()
-      );
+      // Aguardar a atualização do estado antes de enviar a mensagem
+      setTimeout(() => {
+        sendMessage('PLAYER_JOINED', {
+          id: existingPlayer.id,
+          name: existingPlayer.name,
+          score: existingPlayer.score || 0,
+          isConnected: true
+        });
+      }, 100);
+    } else {
+      // Criar novo jogador com ID único
+      const newPlayerId = `player_${Date.now()}`;
+      console.log('✨ [PlayerView] Criando novo jogador:', { id: newPlayerId, name: playerName.trim() });
       
-      if (existingPlayer) {
-        // Reconectar como jogador existente
-        console.log('🔄 [PlayerView] Reconectando como jogador existente:', existingPlayer.name);
-        setPlayerId(existingPlayer.id);
-      } else {
-        // Criar novo jogador
-        console.log('✨ [PlayerView] Criando novo jogador:', playerName.trim());
-        const newPlayerId = addPlayer(playerName.trim());
-        setPlayerId(newPlayerId);
-        console.log('✅ [PlayerView] Novo jogador ID:', newPlayerId);
-      }
+      setPlayerId(newPlayerId);
+      
+      // Aguardar a atualização do estado antes de enviar a mensagem
+      setTimeout(() => {
+        sendMessage('PLAYER_JOINED', {
+          id: newPlayerId,
+          name: playerName.trim(),
+          score: 0,
+          isConnected: true
+        });
+        console.log('✅ [PlayerView] Novo jogador enviado com ID:', newPlayerId);
+        
+        // Adicionar jogador localmente também
+        addPlayer(playerName.trim(), newPlayerId);
+      }, 100);
     }
   };
 
