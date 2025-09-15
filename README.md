@@ -1,73 +1,55 @@
-# Welcome to your Lovable project
+# Quiz Game Multi-Dispositivo 🎮
 
-## Project info
+Sistema de quiz interativo que permite jogadores se conectarem via WiFi usando seus celulares.
 
-**URL**: https://lovable.dev/projects/5fcab197-9212-499f-9563-6d854188bce4
+## 🚀 Como Usar
 
-## How can I edit this code?
+### Início Rápido
+```bash
+# Instalar dependências
+npm install
 
-There are several ways of editing your application.
+# Iniciar o sistema completo (WebSocket + React)
+node start-quiz.js
+```
 
-**Use Lovable**
+### Manual
+```bash
+# 1. Iniciar servidor WebSocket para comunicação entre dispositivos
+node src/server/websocket-server.js
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/5fcab197-9212-499f-9563-6d854188bce4) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 2. Em outro terminal, iniciar a aplicação React
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📱 Acesso Multi-Dispositivo
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. **TV/Apresentação**: Acesse `/tv` no navegador principal
+2. **Jogadores**: Cada jogador acessa `/player` no seu celular
 
-**Use GitHub Codespaces**
+### Para acessar de outros dispositivos:
+1. Descobrir o IP local da máquina host
+2. Acessar `http://[SEU_IP]:8080/player` nos celulares
+3. Exemplo: `http://192.168.1.100:8080/player`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🔧 Tecnologia
 
-## What technologies are used for this project?
+- **WebSocket**: Comunicação em tempo real entre dispositivos na mesma rede WiFi
+- **BroadcastChannel**: Fallback para comunicação local (mesma aba/navegador)
+- **React + TypeScript**: Interface do usuário
+- **Tailwind CSS**: Estilização responsiva
 
-This project is built with:
+## 🎯 Funcionalidades
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- ✅ Reconhecimento automático de jogadores na rede
+- ✅ Buzzer system - primeiro a apertar responde
+- ✅ Detecção de conexão/desconexão em tempo real
+- ✅ Pontuação automática
+- ✅ Reset completo do jogo
+- ✅ Interface responsiva para celulares e TV
 
-## How can I deploy this project?
+## 📋 Desenvolvimento Original
 
-Simply open [Lovable](https://lovable.dev/projects/5fcab197-9212-499f-9563-6d854188bce4) and click on Share -> Publish.
+Este projeto foi criado com Lovable. Para mais informações sobre desenvolvimento e deploy:
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**URL**: https://lovable.dev/projects/5fcab197-9212-499f-9563-6d854188bce4

@@ -191,6 +191,16 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           sendNetworkMessage('GAME_STATE_CHANGE', state);
         }
         break;
+        
+      case 'SERVER_READY':
+        console.log('✅ [QuizContext] Servidor WebSocket pronto!');
+        // Solicitar sincronização quando servidor estiver pronto
+        if (window.location.pathname !== '/tv') {
+          setTimeout(() => {
+            sendNetworkMessage('SYNC_REQUEST', {});
+          }, 500);
+        }
+        break;
     }
   };
 

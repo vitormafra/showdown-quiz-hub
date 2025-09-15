@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "start-ws-server": "node src/server/websocket-server.js",
+    "dev-with-ws": "concurrently \"npm run start-ws-server\" \"npm run dev\""
+  }
+}
