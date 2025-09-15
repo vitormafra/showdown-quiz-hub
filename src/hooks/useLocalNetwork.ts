@@ -18,9 +18,12 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     
     const handleMessage = (event: MessageEvent<NetworkMessage>) => {
       // Ignorar mensagens do próprio dispositivo
-      if (event.data.deviceId === deviceId.current) return;
+      if (event.data.deviceId === deviceId.current) {
+        console.log('🚫 [useLocalNetwork] Ignorando mensagem própria:', event.data.type);
+        return;
+      }
       
-      console.log('Mensagem recebida via BroadcastChannel:', event.data);
+      console.log('📨 [useLocalNetwork] Mensagem recebida:', event.data.type, event.data);
       onMessage(event.data);
     };
 
@@ -63,8 +66,10 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
         deviceId: deviceId.current,
       };
       
-      console.log('Enviando mensagem via BroadcastChannel:', message);
+      console.log('📤 [useLocalNetwork] Enviando:', message.type, message);
       channelRef.current.postMessage(message);
+    } else {
+      console.error('❌ [useLocalNetwork] Canal não inicializado para enviar:', type);
     }
   };
 

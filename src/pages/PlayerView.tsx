@@ -21,21 +21,28 @@ const PlayerView: React.FC = () => {
 
   // Auto-recuperar dados salvos
   useEffect(() => {
+    console.log('🔍 [PlayerView] Verificando dados salvos...');
     const savedPlayerId = localStorage.getItem('playerId');
     const savedPlayerName = localStorage.getItem('playerName');
+    
+    console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName });
+    console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
     
     if (savedPlayerId && savedPlayerName) {
       // Verificar se o jogador ainda existe no estado
       const existingPlayer = state.players.find(p => p.id === savedPlayerId);
       if (existingPlayer) {
+        console.log('✅ [PlayerView] Jogador reconectado automaticamente:', savedPlayerName);
         setPlayerId(savedPlayerId);
         setPlayerName(savedPlayerName);
-        console.log('Jogador reconectado automaticamente:', savedPlayerName);
       } else {
+        console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
         // Player não existe mais, limpar dados salvos
         localStorage.removeItem('playerId');
         localStorage.removeItem('playerName');
       }
+    } else {
+      console.log('🆕 [PlayerView] Nenhum dado salvo encontrado');
     }
   }, [state.players]);
 
@@ -49,6 +56,8 @@ const PlayerView: React.FC = () => {
 
   const handleJoinGame = () => {
     if (playerName.trim()) {
+      console.log('🎮 [PlayerView] Tentando entrar no jogo como:', playerName.trim());
+      
       // Verificar se já existe um jogador com esse nome
       const existingPlayer = state.players.find(p => 
         p.name.toLowerCase() === playerName.trim().toLowerCase()
@@ -56,13 +65,14 @@ const PlayerView: React.FC = () => {
       
       if (existingPlayer) {
         // Reconectar como jogador existente
+        console.log('🔄 [PlayerView] Reconectando como jogador existente:', existingPlayer.name);
         setPlayerId(existingPlayer.id);
-        console.log('Reconectado como jogador existente:', existingPlayer.name);
       } else {
         // Criar novo jogador
+        console.log('✨ [PlayerView] Criando novo jogador:', playerName.trim());
         const newPlayerId = addPlayer(playerName.trim());
         setPlayerId(newPlayerId);
-        console.log('Novo jogador criado:', playerName.trim());
+        console.log('✅ [PlayerView] Novo jogador ID:', newPlayerId);
       }
     }
   };
