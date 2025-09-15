@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuiz } from '@/contexts/QuizContext';
+import { usePlayerData } from '@/hooks/usePlayerData';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { useLocalNetwork } from '@/hooks/useLocalNetwork';
 import { Button } from '@/components/ui/button';
@@ -15,44 +16,48 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 const PlayerView: React.FC = () => {
   const { state, addPlayer, buzzIn, submitAnswer, connectionStatus } = useQuiz();
   const [playerName, setPlayerName] = useState('');
-  const [playerId, setPlayerId] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Usar hook dedicado para dados do jogador que persistem durante sincronizações
+  const { localPlayerId, localPlayerName, updateLocalPlayer, clearLocalPlayer } = usePlayerData();
 
-  // Verificação mais segura do jogador atual
-  const currentPlayer = playerId && Array.isArray(state.players) ? 
-    state.players.find(p => p?.id === playerId) : null;
-  const isActivePlayer = state.activePlayer === playerId;
+  // Verificação mais segura do jogador atual usando dados locais persistentes
+  const currentPlayer = localPlayerId && Array.isArray(state.players) ? 
+    state.players.find(p => p?.id === localPlayerId) : null;
+  const isActivePlayer = state.activePlayer === localPlayerId;
 
   // Configurar rede local com heartbeat se jogador estiver conectado
   const { sendMessage, deviceId } = useLocalNetwork((message) => {
     console.log('📨 [PlayerView] Mensagem recebida:', message);
-  }, playerId || undefined);
+  }, localPlayerId || undefined);
 
   // Auto-recuperar dados salvos com proteção contra erro
   useEffect(() => {
     try {
       console.log('🔍 [PlayerView] Verificando dados salvos...');
-      const savedPlayerId = safeLocalStorage.getItem('playerId');
-      const savedPlayerName = safeLocalStorage.getItem('playerName');
       const savedDeviceId = safeLocalStorage.getItem('deviceId');
       
-      console.log('💾 [PlayerView] Dados salvos:', { savedPlayerId, savedPlayerName, savedDeviceId });
+      console.log('💾 [PlayerView] Dados salvos:', { 
+        localPlayerId, 
+        localPlayerName, 
+        savedDeviceId,
+        currentDeviceId: deviceId 
+      });
       console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
       
-      if (savedPlayerId && savedPlayerName && savedDeviceId === deviceId) {
+      if (localPlayerId && localPlayerName && savedDeviceId === deviceId) {
         // Verificar se o jogador ainda existe no estado
-        const existingPlayer = state.players.find(p => p?.id === savedPlayerId);
+        const existingPlayer = state.players.find(p => p?.id === localPlayerId);
         if (existingPlayer) {
-          console.log('✅ [PlayerView] Jogador reconectado automaticamente:', savedPlayerName);
-          setPlayerId(savedPlayerId);
-          setPlayerName(savedPlayerName);
+          console.log('✅ [PlayerView] Jogador reconectado automaticamente:', localPlayerName);
+          setPlayerName(localPlayerName);
           
           // Enviar mensagem de reconexão com verificação
           setTimeout(() => {
             if (sendMessage) {
               sendMessage('PLAYER_JOINED', {
-                id: savedPlayerId,
-                name: savedPlayerName,
+                id: localPlayerId,
+                name: localPlayerName,
                 score: existingPlayer.score || 0,
                 isConnected: true
               });
@@ -60,30 +65,28 @@ const PlayerView: React.FC = () => {
           }, 500);
         } else {
           console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
-          safeLocalStorage.removeItem('playerId');
-          safeLocalStorage.removeItem('playerName');
-          safeLocalStorage.removeItem('deviceId');
+          clearLocalPlayer();
         }
       } else {
         console.log('🆕 [PlayerView] Nenhum dado salvo encontrado ou deviceId diferente');
+        if (savedDeviceId && savedDeviceId !== deviceId) {
+          // Device diferente, limpar dados antigos
+          clearLocalPlayer();
+        }
       }
     } catch (error) {
       console.error('❌ [PlayerView] Erro ao recuperar dados salvos:', error);
       // Limpar dados corrompidos
-      safeLocalStorage.removeItem('playerId');
-      safeLocalStorage.removeItem('playerName');
-      safeLocalStorage.removeItem('deviceId');
+      clearLocalPlayer();
     }
-  }, [state.players, deviceId, sendMessage]);
+  }, [state.players, deviceId, sendMessage, localPlayerId, localPlayerName, clearLocalPlayer]);
 
   // Salvar dados do jogador quando conectar com proteção
   useEffect(() => {
-    if (playerId && playerName) {
-      safeLocalStorage.setItem('playerId', playerId);
-      safeLocalStorage.setItem('playerName', playerName);
+    if (localPlayerId && localPlayerName) {
       safeLocalStorage.setItem('deviceId', deviceId);
     }
-  }, [playerId, playerName, deviceId]);
+  }, [localPlayerId, localPlayerName, deviceId]);
 
   const handleJoinGame = withErrorBoundary(() => {
     if (!playerName.trim()) {
@@ -116,7 +119,7 @@ const PlayerView: React.FC = () => {
     if (existingPlayer) {
       // Reconectar como jogador existente
       console.log('🔄 [PlayerView] Reconectando como jogador existente:', existingPlayer);
-      setPlayerId(existingPlayer.id);
+      updateLocalPlayer(existingPlayer.id, existingPlayer.name);
       
       // Aguardar a atualização do estado antes de enviar a mensagem
       setTimeout(() => {
@@ -134,7 +137,7 @@ const PlayerView: React.FC = () => {
       const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       console.log('✨ [PlayerView] Criando novo jogador:', { id: newPlayerId, name: playerName.trim() });
       
-      setPlayerId(newPlayerId);
+      updateLocalPlayer(newPlayerId, playerName.trim());
       
       // Aguardar a atualização do estado antes de enviar a mensagem
       setTimeout(() => {
@@ -161,60 +164,62 @@ const PlayerView: React.FC = () => {
   });
 
   const handleBuzzIn = () => {
-    if (playerId && state.gameState === 'playing') {
-      buzzIn(playerId);
+    if (localPlayerId && state.gameState === 'playing') {
+      buzzIn(localPlayerId);
     }
   };
 
   const handleAnswerSubmit = (answerIndex: number) => {
-    if (playerId && isActivePlayer) {
-      submitAnswer(playerId, answerIndex);
+    if (localPlayerId && isActivePlayer) {
+      submitAnswer(localPlayerId, answerIndex);
     }
   };
 
   // Not joined yet
   if (!currentPlayer) {
     return (
-      <div className="min-h-screen quiz-gradient-bg p-6 flex items-center justify-center">
-        <Card className="quiz-card-gradient border-white/10 p-8 w-full max-w-md">
-          <div className="text-center mb-8">
-            <QuizLogo className="justify-center mb-4" />
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Smartphone className="w-6 h-6 text-quiz-primary" />
-              <span className="text-white text-lg">Tela do Jogador</span>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-white font-semibold mb-2">Seu Nome:</label>
-              <Input
-                type="text"
-                placeholder="Digite seu nome"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                maxLength={20}
-              />
+      <ErrorBoundary>
+        <div className="min-h-screen quiz-gradient-bg p-6 flex items-center justify-center">
+          <Card className="quiz-card-gradient border-white/10 p-8 w-full max-w-md">
+            <div className="text-center mb-8">
+              <QuizLogo className="justify-center mb-4" />
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Smartphone className="w-6 h-6 text-quiz-primary" />
+                <span className="text-white text-lg">Tela do Jogador</span>
+              </div>
             </div>
 
-            <Button
-              onClick={handleJoinGame}
-              disabled={!playerName.trim()}
-              className="w-full quiz-gradient-bg hover:opacity-90 text-lg py-6 quiz-glow"
-            >
-              Entrar no Jogo
-            </Button>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-white font-semibold mb-2">Seu Nome:</label>
+                <Input
+                  type="text"
+                  placeholder="Digite seu nome"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                  maxLength={20}
+                />
+              </div>
 
-            <div className="text-center space-y-3">
-              <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
-                Sala: {state.roomCode} | Rede WiFi Local
-              </Badge>
-              <ConnectionStatus status={connectionStatus} compact />
+              <Button
+                onClick={handleJoinGame}
+                disabled={!playerName.trim()}
+                className="w-full quiz-gradient-bg hover:opacity-90 text-lg py-6 quiz-glow"
+              >
+                Entrar no Jogo
+              </Button>
+
+              <div className="text-center space-y-3">
+                <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
+                  Sala: {state.roomCode} | Rede WiFi Local
+                </Badge>
+                <ConnectionStatus status={connectionStatus} compact />
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      </ErrorBoundary>
     );
   }
 
@@ -222,158 +227,158 @@ const PlayerView: React.FC = () => {
     <ErrorBoundary>
       <div className="min-h-screen quiz-gradient-bg p-4">
         <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <QuizLogo className="justify-center mb-4" />
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-3 h-3 bg-quiz-success rounded-full animate-pulse-slow"></div>
-            <span className="text-white font-semibold">Conectado como {currentPlayer.name}</span>
-          </div>
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
-              {currentPlayer.score} pontos
-            </Badge>
-            <ConnectionStatus status={connectionStatus} compact />
-          </div>
-        </div>
-
-        {/* Waiting State */}
-        {state.gameState === 'waiting' && (
-          <Card className="quiz-card-gradient border-white/10 p-8 text-center">
-            <div className="animate-bounce-subtle mb-4">
-              <div className="w-16 h-16 bg-quiz-warning rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl">⏳</span>
-              </div>
+          {/* Header */}
+          <div className="text-center mb-6">
+            <QuizLogo className="justify-center mb-4" />
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="w-3 h-3 bg-quiz-success rounded-full animate-pulse-slow"></div>
+              <span className="text-white font-semibold">Conectado como {currentPlayer.name}</span>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Aguarde...</h3>
-            <p className="text-white/80">O quiz começará em breve!</p>
-          </Card>
-        )}
-
-        {/* Playing - Buzz In */}
-        {state.gameState === 'playing' && !isActivePlayer && (
-          <Card className="quiz-card-gradient border-white/10 p-8 text-center">
-            <h3 className="text-xl font-bold text-white mb-6">Pergunta na tela!</h3>
-            <Button
-              onClick={handleBuzzIn}
-              size="lg"
-              className="w-full py-8 text-2xl font-bold quiz-success-gradient hover:opacity-90 quiz-success-glow animate-pulse-slow"
-            >
-              <Zap className="w-8 h-8 mr-3" />
-              RESPONDER!
-            </Button>
-            <p className="text-white/80 mt-4">Aperte o botão para responder primeiro!</p>
-          </Card>
-        )}
-
-        {/* Buzzing - Waiting */}
-        {state.gameState === 'buzzing' && !isActivePlayer && (
-          <Card className="quiz-card-gradient border-white/10 p-8 text-center">
-            <div className="animate-pulse-slow mb-4">
-              <div className="w-16 h-16 bg-quiz-danger rounded-full flex items-center justify-center mx-auto">
-                <span className="text-2xl">⏱️</span>
-              </div>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Tarde demais!</h3>
-            <p className="text-white/80">
-              {state.players.find(p => p.id === state.activePlayer)?.name} está respondendo...
-            </p>
-          </Card>
-        )}
-
-        {/* Active Player - Answer Options */}
-        {(state.gameState === 'buzzing' || state.gameState === 'answering') && isActivePlayer && state.currentQuestion && (
-          <Card className="quiz-card-gradient border-white/10 p-6">
-            <div className="text-center mb-6">
-              <Badge className="quiz-success-gradient text-lg px-4 py-2 mb-4">
-                🎯 Sua vez de responder!
-              </Badge>
-              <h3 className="text-lg font-bold text-white">Escolha sua resposta:</h3>
-            </div>
-
-            <div className="space-y-4">
-              {state.currentQuestion.options.map((option, index) => (
-                <Button
-                  key={index}
-                  onClick={() => handleAnswerSubmit(index)}
-                  variant="outline"
-                  className="w-full p-4 h-auto text-left bg-white/10 border-white/20 hover:bg-white/20 text-white justify-start"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-quiz-primary rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-white font-bold">
-                        {String.fromCharCode(65 + index)}
-                      </span>
-                    </div>
-                    <span className="text-white font-semibold">{option}</span>
-                  </div>
-                </Button>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Results State */}
-        {state.gameState === 'results' && (
-          <Card className="quiz-card-gradient border-white/10 p-8 text-center">
-            {isActivePlayer ? (
-              <>
-                <div className="mb-4">
-                  {/* We'll show if they got it right - simplified for now */}
-                  <CheckCircle className="w-16 h-16 text-quiz-success mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">Resposta enviada!</h3>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 bg-quiz-warning rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">📊</span>
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Aguarde o resultado...</h3>
-              </>
-            )}
-            <p className="text-white/80">Próxima pergunta chegando!</p>
-          </Card>
-        )}
-
-        {/* Game Finished */}
-        {state.gameState === 'finished' && (
-          <Card className="quiz-card-gradient border-white/10 p-8 text-center">
-            <div className="mb-6">
-              <div className="text-6xl mb-4">🎉</div>
-              <h3 className="text-2xl font-bold text-white mb-2">Quiz Finalizado!</h3>
-              <p className="text-white/80 mb-4">Você marcou:</p>
-              <div className="text-4xl font-bold text-quiz-warning mb-4">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
                 {currentPlayer.score} pontos
+              </Badge>
+              <ConnectionStatus status={connectionStatus} compact />
+            </div>
+          </div>
+
+          {/* Waiting State */}
+          {state.gameState === 'waiting' && (
+            <Card className="quiz-card-gradient border-white/10 p-8 text-center">
+              <div className="animate-bounce-subtle mb-4">
+                <div className="w-16 h-16 bg-quiz-warning rounded-full flex items-center justify-center mx-auto">
+                  <span className="text-2xl">⏳</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Aguarde...</h3>
+              <p className="text-white/80">O quiz começará em breve!</p>
+            </Card>
+          )}
+
+          {/* Playing - Buzz In */}
+          {state.gameState === 'playing' && !isActivePlayer && (
+            <Card className="quiz-card-gradient border-white/10 p-8 text-center">
+              <h3 className="text-xl font-bold text-white mb-6">Pergunta na tela!</h3>
+              <Button
+                onClick={handleBuzzIn}
+                size="lg"
+                className="w-full py-8 text-2xl font-bold quiz-success-gradient hover:opacity-90 quiz-success-glow animate-pulse-slow"
+              >
+                <Zap className="w-8 h-8 mr-3" />
+                RESPONDER!
+              </Button>
+              <p className="text-white/80 mt-4">Aperte o botão para responder primeiro!</p>
+            </Card>
+          )}
+
+          {/* Buzzing - Waiting */}
+          {state.gameState === 'buzzing' && !isActivePlayer && (
+            <Card className="quiz-card-gradient border-white/10 p-8 text-center">
+              <div className="animate-pulse-slow mb-4">
+                <div className="w-16 h-16 bg-quiz-danger rounded-full flex items-center justify-center mx-auto">
+                  <span className="text-2xl">⏱️</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Tarde demais!</h3>
+              <p className="text-white/80">
+                {state.players.find(p => p.id === state.activePlayer)?.name} está respondendo...
+              </p>
+            </Card>
+          )}
+
+          {/* Active Player - Answer Options */}
+          {(state.gameState === 'buzzing' || state.gameState === 'answering') && isActivePlayer && state.currentQuestion && (
+            <Card className="quiz-card-gradient border-white/10 p-6">
+              <div className="text-center mb-6">
+                <Badge className="quiz-success-gradient text-lg px-4 py-2 mb-4">
+                  🎯 Sua vez de responder!
+                </Badge>
+                <h3 className="text-lg font-bold text-white">Escolha sua resposta:</h3>
+              </div>
+
+              <div className="space-y-4">
+                {state.currentQuestion.options.map((option, index) => (
+                  <Button
+                    key={index}
+                    onClick={() => handleAnswerSubmit(index)}
+                    variant="outline"
+                    className="w-full p-4 h-auto text-left bg-white/10 border-white/20 hover:bg-white/20 text-white justify-start"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-quiz-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-bold">
+                          {String.fromCharCode(65 + index)}
+                        </span>
+                      </div>
+                      <span className="text-white font-semibold">{option}</span>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Results State */}
+          {state.gameState === 'results' && (
+            <Card className="quiz-card-gradient border-white/10 p-8 text-center">
+              {isActivePlayer ? (
+                <>
+                  <div className="mb-4">
+                    {/* We'll show if they got it right - simplified for now */}
+                    <CheckCircle className="w-16 h-16 text-quiz-success mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">Resposta enviada!</h3>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-quiz-warning rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Aguarde o resultado...</h3>
+                </>
+              )}
+              <p className="text-white/80">Próxima pergunta chegando!</p>
+            </Card>
+          )}
+
+          {/* Game Finished */}
+          {state.gameState === 'finished' && (
+            <Card className="quiz-card-gradient border-white/10 p-8 text-center">
+              <div className="mb-6">
+                <div className="text-6xl mb-4">🎉</div>
+                <h3 className="text-2xl font-bold text-white mb-2">Quiz Finalizado!</h3>
+                <p className="text-white/80 mb-4">Você marcou:</p>
+                <div className="text-4xl font-bold text-quiz-warning mb-4">
+                  {currentPlayer.score} pontos
+                </div>
+                
+                {/* Position */}
+                {(() => {
+                  const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
+                  const position = sortedPlayers.findIndex(p => p.id === localPlayerId) + 1;
+                  return (
+                    <Badge className={`text-lg px-4 py-2 mb-4 ${
+                      position === 1 ? 'quiz-success-gradient' :
+                      position === 2 ? 'bg-quiz-secondary' :
+                      position === 3 ? 'bg-quiz-warning' : 'bg-muted'
+                    }`}>
+                      {position === 1 ? '🥇 1º Lugar!' :
+                       position === 2 ? '🥈 2º Lugar!' :
+                       position === 3 ? '🥉 3º Lugar!' :
+                       `${position}º Lugar`}
+                    </Badge>
+                  );
+                })()}
               </div>
               
-              {/* Position */}
-              {(() => {
-                const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
-                const position = sortedPlayers.findIndex(p => p.id === playerId) + 1;
-                return (
-                  <Badge className={`text-lg px-4 py-2 mb-4 ${
-                    position === 1 ? 'quiz-success-gradient' :
-                    position === 2 ? 'bg-quiz-secondary' :
-                    position === 3 ? 'bg-quiz-warning' : 'bg-muted'
-                  }`}>
-                    {position === 1 ? '🥇 1º Lugar!' :
-                     position === 2 ? '🥈 2º Lugar!' :
-                     position === 3 ? '🥉 3º Lugar!' :
-                     `${position}º Lugar`}
-                  </Badge>
-                );
-              })()}
-            </div>
-            
-            <div className="border-t border-white/20 pt-4">
-              <p className="text-white/80 mb-2">Parabéns por participar!</p>
-              <p className="text-white/60 text-sm">
-                ⏳ Aguardando próximo jogo...
-              </p>
-            </div>
-          </Card>
-        )}
+              <div className="border-t border-white/20 pt-4">
+                <p className="text-white/80 mb-2">Parabéns por participar!</p>
+                <p className="text-white/60 text-sm">
+                  ⏳ Aguardando próximo jogo...
+                </p>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </ErrorBoundary>

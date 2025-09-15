@@ -23,6 +23,7 @@ export interface QuizState {
   activePlayer: string | null;
   totalQuestions: number;
   roomCode: string;
+  timestamp?: number;
 }
 
 interface QuizContextType {
@@ -128,11 +129,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 ),
                 timestamp: Date.now()
               };
-              // TV sempre broadcast o estado completo para todos
+              // TV sempre broadcast o estado completo para todos COM DELAY para evitar conflitos
               if (sendNetworkMessageRef.current) {
                 setTimeout(() => {
+                  console.log('📡 [QuizContext] TV broadcasting estado após reconexão');
                   sendNetworkMessageRef.current?.('STATE_SYNC', newState);
-                }, 200);
+                }, 500); // Delay maior para evitar conflitos
               }
               return newState;
             }
@@ -144,11 +146,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               timestamp: Date.now()
             };
             
-            // TV sempre broadcast o estado completo para todos
+            // TV sempre broadcast o estado completo para todos COM DELAY para evitar conflitos
             if (sendNetworkMessageRef.current) {
               setTimeout(() => {
+                console.log('📡 [QuizContext] TV broadcasting estado após novo jogador');
                 sendNetworkMessageRef.current?.('STATE_SYNC', newState);
-              }, 200);
+              }, 500); // Delay maior para evitar conflitos
             }
             
             return newState;
@@ -261,7 +264,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // Verificação mais flexível de timestamp para evitar dessincronização
           const timeDiff = messageTimestamp - lastSyncRef.current;
-          const shouldSync = timeDiff > -5000; // Aceitar se não for muito antigo (5s)
+          const shouldSync = timeDiff > -10000; // Aceitar se não for muito antigo (10s mais tolerante)
           
           if (shouldSync) {
             console.log('🔄 [QuizContext] Jogador sincronizando com TV:', {
@@ -270,15 +273,30 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               timeDiff
             });
             
-            // Garantir que o estado seja válido antes de aplicar
-            const validatedState = {
-              ...message.data,
-              players: Array.isArray(message.data.players) ? message.data.players : [],
-              gameState: message.data.gameState || 'waiting',
-              currentQuestionIndex: message.data.currentQuestionIndex || 0
-            };
+            // PRESERVAR dados locais importantes do jogador durante sincronização
+            setState(currentState => {
+              // Garantir que o estado seja válido antes de aplicar
+              const validatedState = {
+                ...message.data,
+                players: Array.isArray(message.data.players) ? message.data.players : [],
+                gameState: message.data.gameState || 'waiting',
+                currentQuestionIndex: message.data.currentQuestionIndex || 0,
+                // PRESERVAR timestamp local se for mais recente para evitar loops
+                timestamp: Math.max(messageTimestamp, currentState.timestamp || 0)
+              };
+              
+              console.log('🔄 [QuizContext] Estado antes da sincronização:', {
+                currentPlayers: currentState.players?.length || 0,
+                currentGameState: currentState.gameState
+              });
+              console.log('🔄 [QuizContext] Estado após sincronização:', {
+                newPlayers: validatedState.players?.length || 0,
+                newGameState: validatedState.gameState
+              });
+              
+              return validatedState;
+            });
             
-            setState(validatedState);
             lastSyncRef.current = messageTimestamp;
             
             // Limpar timeout de sincronização pendente
