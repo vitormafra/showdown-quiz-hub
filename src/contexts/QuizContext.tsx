@@ -83,7 +83,6 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Controle de heartbeat e jogadores conectados
   const lastHeartbeatRef = useRef<{ [playerId: string]: number }>({});
-  const [networkInitialized, setNetworkInitialized] = useState(false);
   
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
@@ -223,13 +222,6 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Inicializar network
   const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
 
-  useEffect(() => {
-    if (sendNetworkMessage) {
-      setNetworkInitialized(true);
-      console.log('🌐 [QuizContext] Network inicializado com sucesso');
-    }
-  }, [sendNetworkMessage]);
-
   // Monitor heartbeats para detectar jogadores desconectados
   useEffect(() => {
     const checkHeartbeats = setInterval(() => {
@@ -291,7 +283,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Enviar via rede PRIMEIRO
     console.log('📡 [QuizContext] Enviando PLAYER_JOINED via rede');
-    if (sendNetworkMessage && networkInitialized) {
+    if (sendNetworkMessage) {
       sendNetworkMessage('PLAYER_JOINED', newPlayer);
     }
 
@@ -316,7 +308,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
     
     // Sincronizar com rede
-    if (sendNetworkMessage && networkInitialized) {
+    if (sendNetworkMessage) {
       sendNetworkMessage('GAME_STATE_CHANGE', newState);
     }
   };
@@ -325,7 +317,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('Jogador tentando responder:', playerId);
     if (state.gameState === 'playing') {
       // Enviar via rede
-      if (sendNetworkMessage && networkInitialized) {
+      if (sendNetworkMessage) {
         sendNetworkMessage('PLAYER_BUZZ', { playerId });
       }
       
@@ -339,7 +331,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const submitAnswer = (playerId: string, answerIndex: number) => {
     // Enviar via rede
-    if (sendNetworkMessage && networkInitialized) {
+    if (sendNetworkMessage) {
       sendNetworkMessage('PLAYER_ANSWER', { playerId, answerIndex });
     }
     
@@ -382,7 +374,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ...newState,
       }));
       
-      if (sendNetworkMessage && networkInitialized) {
+      if (sendNetworkMessage) {
         sendNetworkMessage('GAME_STATE_CHANGE', newState);
       }
     } else {
@@ -398,7 +390,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ...newState,
       }));
       
-      if (sendNetworkMessage && networkInitialized) {
+      if (sendNetworkMessage) {
         sendNetworkMessage('GAME_STATE_CHANGE', newState);
       }
     }
@@ -427,18 +419,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
     
     // Sincronizar reset com todos os dispositivos
-    if (sendNetworkMessage && networkInitialized) {
+    if (sendNetworkMessage) {
       sendNetworkMessage('GAME_STATE_CHANGE', resetState);
     }
     
     console.log('Jogo resetado - cache limpo, jogadores devem se reconectar');
   };
-
-  // Não renderizar até que o network esteja inicializado
-  if (!networkInitialized) {
-    console.log('⏳ [QuizContext] Aguardando inicialização da rede...');
-    return <div>Inicializando rede...</div>;
-  }
 
   return (
     <QuizContext.Provider
