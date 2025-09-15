@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuiz } from '@/contexts/QuizContext';
+import { useLocalNetwork } from '@/hooks/useLocalNetwork';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,10 +16,54 @@ const PlayerView: React.FC = () => {
   const currentPlayer = playerId ? state.players.find(p => p.id === playerId) : null;
   const isActivePlayer = state.activePlayer === playerId;
 
+  // Configurar rede local com heartbeat se jogador estiver conectado
+  const { } = useLocalNetwork(() => {}, playerId || undefined);
+
+  // Auto-recuperar dados salvos
+  useEffect(() => {
+    const savedPlayerId = localStorage.getItem('playerId');
+    const savedPlayerName = localStorage.getItem('playerName');
+    
+    if (savedPlayerId && savedPlayerName) {
+      // Verificar se o jogador ainda existe no estado
+      const existingPlayer = state.players.find(p => p.id === savedPlayerId);
+      if (existingPlayer) {
+        setPlayerId(savedPlayerId);
+        setPlayerName(savedPlayerName);
+        console.log('Jogador reconectado automaticamente:', savedPlayerName);
+      } else {
+        // Player não existe mais, limpar dados salvos
+        localStorage.removeItem('playerId');
+        localStorage.removeItem('playerName');
+      }
+    }
+  }, [state.players]);
+
+  // Salvar dados do jogador quando conectar
+  useEffect(() => {
+    if (playerId && playerName) {
+      localStorage.setItem('playerId', playerId);
+      localStorage.setItem('playerName', playerName);
+    }
+  }, [playerId, playerName]);
+
   const handleJoinGame = () => {
     if (playerName.trim()) {
-      const newPlayerId = addPlayer(playerName.trim());
-      setPlayerId(newPlayerId);
+      // Verificar se já existe um jogador com esse nome
+      const existingPlayer = state.players.find(p => 
+        p.name.toLowerCase() === playerName.trim().toLowerCase()
+      );
+      
+      if (existingPlayer) {
+        // Reconectar como jogador existente
+        setPlayerId(existingPlayer.id);
+        console.log('Reconectado como jogador existente:', existingPlayer.name);
+      } else {
+        // Criar novo jogador
+        const newPlayerId = addPlayer(playerName.trim());
+        setPlayerId(newPlayerId);
+        console.log('Novo jogador criado:', playerName.trim());
+      }
     }
   };
 

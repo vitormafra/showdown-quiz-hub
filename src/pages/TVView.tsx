@@ -29,10 +29,10 @@ const TVView: React.FC = () => {
           <div className="flex gap-4">
             <Badge variant="secondary" className="text-lg px-4 py-2">
               <Users className="w-5 h-5 mr-2" />
-              {state.players.length} Jogadores
+              {state.players.filter(p => p.isConnected).length} Online / {state.players.length} Total
             </Badge>
             <Badge variant="outline" className="text-lg px-4 py-2 bg-white/10 border-white/20">
-              Sala: {state.roomCode} | WiFi Local
+              Sala: {state.roomCode} | WiFi Local | Auto-Start
             </Badge>
             {/* Botão de Reset sempre disponível para o operador */}
             {state.gameState !== 'waiting' && (
@@ -41,7 +41,7 @@ const TVView: React.FC = () => {
                 variant="outline" 
                 className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
               >
-                🔄 Reset
+                🔄 Reset Completo
               </Button>
             )}
           </div>
@@ -83,8 +83,18 @@ const TVView: React.FC = () => {
                         </div>
                         <p className="text-white font-semibold">{player.name}</p>
                         <div className="flex items-center justify-center gap-1 mt-2">
-                          <div className="w-3 h-3 bg-quiz-success rounded-full animate-pulse-slow"></div>
-                          <span className="text-quiz-success text-xs">Conectado</span>
+                          <div className={`w-3 h-3 rounded-full ${
+                            player.isConnected 
+                              ? 'bg-quiz-success animate-pulse-slow' 
+                              : 'bg-quiz-danger'
+                          }`}></div>
+                          <span className={`text-xs ${
+                            player.isConnected 
+                              ? 'text-quiz-success' 
+                              : 'text-quiz-danger'
+                          }`}>
+                            {player.isConnected ? 'Online' : 'Offline'}
+                          </span>
                         </div>
                       </div>
                     </Card>
@@ -95,9 +105,12 @@ const TVView: React.FC = () => {
 
             {state.players.length === 0 && (
               <div className="text-center mb-8">
-                <p className="text-white/60 text-lg">Nenhum jogador conectado ainda...</p>
+                <p className="text-white/60 text-lg">Aguardando jogadores se conectarem...</p>
                 <p className="text-white/40 text-sm mt-2">
-                  Os jogadores devem acessar /player para entrar
+                  ⚡ O jogo iniciará automaticamente quando o primeiro jogador entrar
+                </p>
+                <p className="text-white/40 text-sm">
+                  📱 Os jogadores devem acessar /player para entrar
                 </p>
               </div>
             )}
@@ -246,7 +259,7 @@ const TVView: React.FC = () => {
                   🔄 Resetar Jogo
                 </Button>
                 <p className="text-white/70 text-sm mt-3">
-                  Mantém os jogadores conectados e zera a pontuação
+                  Limpa cache e força reconexão de todos os jogadores
                 </p>
               </div>
             </Card>

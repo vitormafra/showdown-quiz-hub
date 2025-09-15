@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
 
 interface NetworkMessage {
-  type: 'PLAYER_JOINED' | 'PLAYER_BUZZ' | 'PLAYER_ANSWER' | 'GAME_STATE_CHANGE' | 'SYNC_REQUEST';
+  type: 'PLAYER_JOINED' | 'PLAYER_BUZZ' | 'PLAYER_ANSWER' | 'GAME_STATE_CHANGE' | 'SYNC_REQUEST' | 'HEARTBEAT' | 'PLAYER_DISCONNECT';
   data: any;
   timestamp: number;
   deviceId: string;
 }
 
-export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void) => {
+export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, playerId?: string) => {
   const channelRef = useRef<BroadcastChannel | null>(null);
   const deviceId = useRef(Math.random().toString(36).substr(2, 9));
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Crear canal de comunicação
@@ -28,13 +29,30 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void) =>
     // Solicitar sincronização ao conectar
     sendMessage('SYNC_REQUEST', {});
 
+    // Configurar heartbeat se for um jogador
+    if (playerId) {
+      heartbeatIntervalRef.current = setInterval(() => {
+        sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
+      }, 5000); // Heartbeat a cada 5 segundos
+    }
+
     return () => {
+      // Enviar sinal de desconexão
+      if (playerId) {
+        sendMessage('PLAYER_DISCONNECT', { playerId });
+      }
+      
+      // Limpar heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      
       if (channelRef.current) {
         channelRef.current.removeEventListener('message', handleMessage);
         channelRef.current.close();
       }
     };
-  }, [onMessage]);
+  }, [onMessage, playerId]);
 
   const sendMessage = (type: NetworkMessage['type'], data: any) => {
     if (channelRef.current) {

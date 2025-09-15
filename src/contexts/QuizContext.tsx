@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { useLocalNetwork } from '@/hooks/useLocalNetwork';
 
 export interface Player {
@@ -81,6 +81,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     roomCode: 'QUIZ123',
   });
 
+  // Controle de heartbeat e jogadores conectados
+  const lastHeartbeatRef = useRef<{ [playerId: string]: number }>({});
+  
   // Comunicação via rede local
   const handleNetworkMessage = (message: any) => {
     console.log('Processando mensagem de rede:', message);
@@ -89,13 +92,56 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       case 'PLAYER_JOINED':
         setState(prev => {
           const existingPlayer = prev.players.find(p => p.id === message.data.id);
-          if (existingPlayer) return prev;
+          if (existingPlayer) {
+            // Jogador reconectou - marcar como conectado
+            return {
+              ...prev,
+              players: prev.players.map(p => 
+                p.id === message.data.id ? { ...p, isConnected: true } : p
+              ),
+            };
+          }
           
-          return {
+          const newState = {
             ...prev,
-            players: [...prev.players, message.data],
+            players: [...prev.players, { ...message.data, isConnected: true }],
           };
+          
+          // Auto-start se tiver pelo menos 1 jogador e o jogo estiver esperando
+          if (newState.players.length >= 1 && newState.gameState === 'waiting') {
+            console.log('Auto-iniciando jogo com', newState.players.length, 'jogador(es)');
+            return {
+              ...newState,
+              gameState: 'playing',
+              currentQuestion: mockQuestions[0],
+              currentQuestionIndex: 0,
+            };
+          }
+          
+          return newState;
         });
+        break;
+        
+      case 'HEARTBEAT':
+        const { playerId: heartbeatPlayerId } = message.data;
+        lastHeartbeatRef.current[heartbeatPlayerId] = Date.now();
+        
+        // Marcar jogador como conectado se não estiver
+        setState(prev => ({
+          ...prev,
+          players: prev.players.map(p => 
+            p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
+          ),
+        }));
+        break;
+        
+      case 'PLAYER_DISCONNECT':
+        setState(prev => ({
+          ...prev,
+          players: prev.players.map(p => 
+            p.id === message.data.playerId ? { ...p, isConnected: false } : p
+          ),
+        }));
         break;
         
       case 'PLAYER_BUZZ':
@@ -144,6 +190,30 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
+
+  // Monitor heartbeats para detectar jogadores desconectados
+  useEffect(() => {
+    const checkHeartbeats = setInterval(() => {
+      const now = Date.now();
+      const timeout = 15000; // 15 segundos sem heartbeat = desconectado
+      
+      setState(prev => ({
+        ...prev,
+        players: prev.players.map(p => {
+          const lastHeartbeat = lastHeartbeatRef.current[p.id];
+          const isConnected = lastHeartbeat && (now - lastHeartbeat) < timeout;
+          
+          if (p.isConnected && !isConnected) {
+            console.log('Jogador', p.name, 'desconectou (timeout)');
+          }
+          
+          return { ...p, isConnected: isConnected || false };
+        }),
+      }));
+    }, 5000);
+
+    return () => clearInterval(checkHeartbeats);
+  }, []);
 
   // Backup localStorage (para persistência local)
   useEffect(() => {
@@ -284,12 +354,20 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const resetGame = () => {
+    // Limpar cache localStorage
+    localStorage.removeItem('quizState');
+    localStorage.removeItem('playerId');
+    localStorage.removeItem('playerName');
+    
+    // Limpar heartbeats
+    lastHeartbeatRef.current = {};
+    
     const resetState = {
       gameState: 'waiting' as const,
       currentQuestion: null,
       currentQuestionIndex: 0,
       activePlayer: null,
-      players: state.players.map(p => ({ ...p, score: 0 })), // Mantém jogadores mas zera pontuação
+      players: [], // Limpar todos os jogadores para forçar reconexão
     };
     
     setState(prev => ({
@@ -300,7 +378,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Sincronizar reset com todos os dispositivos
     sendNetworkMessage('GAME_STATE_CHANGE', resetState);
     
-    console.log('Jogo resetado - mantendo jogadores conectados');
+    console.log('Jogo resetado - cache limpo, jogadores devem se reconectar');
   };
 
   return (
