@@ -93,20 +93,28 @@ const Index = () => {
         {/* Instructions */}
         <div className="mt-12 text-center">
           <Card className="quiz-card-gradient border-white/10 p-6">
-            <h3 className="text-lg font-bold text-white mb-4">Como usar:</h3>
+            <h3 className="text-lg font-bold text-white mb-4">Como usar em rede WiFi local (sem internet):</h3>
             <div className="grid md:grid-cols-4 gap-4 text-sm text-white/80">
               <div>
-                <span className="text-quiz-primary font-bold">1.</span> Abra a Tela Principal na TV
+                <span className="text-quiz-primary font-bold">1.</span> Conecte TV e celulares na mesma rede WiFi
               </div>
               <div>
-                <span className="text-quiz-secondary font-bold">2.</span> Jogadores entram pelo celular
+                <span className="text-quiz-secondary font-bold">2.</span> Abra o jogo na TV: /tv
               </div>
               <div>
-                <span className="text-quiz-success font-bold">3.</span> Inicie o quiz na tela principal
+                <span className="text-quiz-success font-bold">3.</span> Celulares acessam: /player
               </div>
               <div>
-                <span className="text-quiz-warning font-bold">4.</span> Divirta-se jogando!
+                <span className="text-quiz-warning font-bold">4.</span> Os jogadores aparecerão automaticamente na TV!
               </div>
+            </div>
+            
+            <div className="mt-6 p-4 bg-white/10 rounded-lg">
+              <p className="text-white font-semibold mb-2">🌐 Funcionamento offline:</p>
+              <p className="text-white/70 text-sm">
+                Usa BroadcastChannel API para comunicação local entre dispositivos na mesma rede WiFi.
+                Não precisa de internet - apenas WiFi local!
+              </p>
             </div>
           </Card>
         </div>

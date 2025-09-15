@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useLocalNetwork } from '@/hooks/useLocalNetwork';
 
 export interface Player {
   id: string;
@@ -80,7 +81,71 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     roomCode: 'QUIZ123',
   });
 
-  // Sincronização via localStorage
+  // Comunicação via rede local
+  const handleNetworkMessage = (message: any) => {
+    console.log('Processando mensagem de rede:', message);
+    
+    switch (message.type) {
+      case 'PLAYER_JOINED':
+        setState(prev => {
+          const existingPlayer = prev.players.find(p => p.id === message.data.id);
+          if (existingPlayer) return prev;
+          
+          return {
+            ...prev,
+            players: [...prev.players, message.data],
+          };
+        });
+        break;
+        
+      case 'PLAYER_BUZZ':
+        setState(prev => ({
+          ...prev,
+          gameState: 'buzzing',
+          activePlayer: message.data.playerId,
+        }));
+        break;
+        
+      case 'PLAYER_ANSWER':
+        const { playerId, answerIndex } = message.data;
+        const player = state.players.find(p => p.id === playerId);
+        const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
+
+        if (player && isCorrect) {
+          setState(prev => ({
+            ...prev,
+            players: prev.players.map(p =>
+              p.id === playerId ? { ...p, score: p.score + 10 } : p
+            ),
+            gameState: 'results',
+          }));
+        } else {
+          setState(prev => ({
+            ...prev,
+            gameState: 'results',
+          }));
+        }
+        break;
+        
+      case 'GAME_STATE_CHANGE':
+        setState(prev => ({
+          ...prev,
+          ...message.data,
+        }));
+        break;
+        
+      case 'SYNC_REQUEST':
+        // Responder com o estado atual (apenas a TV)
+        if (window.location.pathname === '/tv') {
+          sendNetworkMessage('GAME_STATE_CHANGE', state);
+        }
+        break;
+    }
+  };
+
+  const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
+
+  // Backup localStorage (para persistência local)
   useEffect(() => {
     const savedState = localStorage.getItem('quizState');
     if (savedState) {
@@ -91,43 +156,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           players: parsedState.players || [],
           gameState: parsedState.gameState || 'waiting',
         }));
-        console.log('Estado carregado do localStorage:', parsedState);
       } catch (error) {
         console.error('Erro ao carregar estado:', error);
       }
     }
   }, []);
 
-  // Salvar estado no localStorage
   useEffect(() => {
     localStorage.setItem('quizState', JSON.stringify(state));
-    console.log('Estado salvo no localStorage:', state);
   }, [state]);
-
-  // Listener para mudanças do localStorage (sincronização entre abas)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'quizState' && e.newValue) {
-        try {
-          const newState = JSON.parse(e.newValue);
-          setState(prev => ({
-            ...prev,
-            players: newState.players || [],
-            gameState: newState.gameState || 'waiting',
-            currentQuestion: newState.currentQuestion || null,
-            currentQuestionIndex: newState.currentQuestionIndex || 0,
-            activePlayer: newState.activePlayer || null,
-          }));
-          console.log('Estado sincronizado entre abas:', newState);
-        } catch (error) {
-          console.error('Erro ao sincronizar estado:', error);
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
 
   const addPlayer = (name: string) => {
     const newPlayer: Player = {
@@ -138,6 +175,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     console.log('Adicionando jogador:', newPlayer);
+
+    // Enviar via rede
+    sendNetworkMessage('PLAYER_JOINED', newPlayer);
 
     setState(prev => {
       const newState = {
@@ -153,17 +193,27 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const startGame = () => {
     console.log('Iniciando jogo...');
-    setState(prev => ({
-      ...prev,
-      gameState: 'playing',
+    const newState = {
+      gameState: 'playing' as const,
       currentQuestion: mockQuestions[0],
       currentQuestionIndex: 0,
+    };
+    
+    setState(prev => ({
+      ...prev,
+      ...newState,
     }));
+    
+    // Sincronizar com rede
+    sendNetworkMessage('GAME_STATE_CHANGE', newState);
   };
 
   const buzzIn = (playerId: string) => {
     console.log('Jogador tentando responder:', playerId);
     if (state.gameState === 'playing') {
+      // Enviar via rede
+      sendNetworkMessage('PLAYER_BUZZ', { playerId });
+      
       setState(prev => ({
         ...prev,
         gameState: 'buzzing',
@@ -173,6 +223,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const submitAnswer = (playerId: string, answerIndex: number) => {
+    // Enviar via rede
+    sendNetworkMessage('PLAYER_ANSWER', { playerId, answerIndex });
+    
     const player = state.players.find(p => p.id === playerId);
     const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
 
@@ -201,20 +254,32 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const nextIndex = state.currentQuestionIndex + 1;
     
     if (nextIndex >= mockQuestions.length) {
-      setState(prev => ({
-        ...prev,
-        gameState: 'finished',
+      const newState = {
+        gameState: 'finished' as const,
         currentQuestion: null,
         activePlayer: null,
-      }));
-    } else {
+      };
+      
       setState(prev => ({
         ...prev,
+        ...newState,
+      }));
+      
+      sendNetworkMessage('GAME_STATE_CHANGE', newState);
+    } else {
+      const newState = {
         currentQuestionIndex: nextIndex,
         currentQuestion: mockQuestions[nextIndex],
-        gameState: 'playing',
+        gameState: 'playing' as const,
         activePlayer: null,
+      };
+      
+      setState(prev => ({
+        ...prev,
+        ...newState,
       }));
+      
+      sendNetworkMessage('GAME_STATE_CHANGE', newState);
     }
   };
 

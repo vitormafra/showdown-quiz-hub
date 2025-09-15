@@ -70,7 +70,7 @@ const PlayerView: React.FC = () => {
 
             <div className="text-center">
               <Badge variant="outline" className="bg-white/10 border-white/20 text-white">
-                Sala: {state.roomCode}
+                Sala: {state.roomCode} | Rede WiFi Local
               </Badge>
             </div>
           </div>

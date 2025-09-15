@@ -32,7 +32,7 @@ const TVView: React.FC = () => {
               {state.players.length} Jogadores
             </Badge>
             <Badge variant="outline" className="text-lg px-4 py-2 bg-white/10 border-white/20">
-              Sala: {state.roomCode}
+              Sala: {state.roomCode} | WiFi Local
             </Badge>
           </div>
         </div>
