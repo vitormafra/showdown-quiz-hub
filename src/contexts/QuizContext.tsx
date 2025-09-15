@@ -87,16 +87,16 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
     console.log('📡 [QuizContext] Processando mensagem:', message.type, message);
-    console.log('📊 [QuizContext] Estado antes da mensagem:', {
-      playersCount: state.players.length,
-      gameState: state.gameState,
-      currentPath: window.location.pathname
-    });
+    console.log('🌍 [QuizContext] Rota atual:', window.location.pathname);
     
     switch (message.type) {
       case 'PLAYER_JOINED':
         console.log('👤 [QuizContext] Jogador tentando entrar:', message.data);
         setState(prev => {
+          console.log('📊 [QuizContext] Estado antes de processar PLAYER_JOINED:');
+          console.log('  - playersCount:', prev.players.length);
+          console.log('  - gameState:', prev.gameState);
+          
           const existingPlayer = prev.players.find(p => p.id === message.data.id);
           if (existingPlayer) {
             console.log('🔄 [QuizContext] Jogador reconectou:', existingPlayer.name);
@@ -111,24 +111,31 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return newState;
           }
           
-          console.log('✅ [QuizContext] Novo jogador adicionado:', message.data.name);
+          console.log('✅ [QuizContext] Novo jogador sendo adicionado:', message.data.name);
           const newState = {
             ...prev,
             players: [...prev.players, { ...message.data, isConnected: true }],
           };
-          console.log('📊 [QuizContext] Novo estado com jogador:', newState);
+          console.log('📊 [QuizContext] Novo estado com jogador:');
+          console.log('  - playersCount:', newState.players.length);
+          console.log('  - gameState:', newState.gameState);
           
           // Auto-start se tiver pelo menos 1 jogador e o jogo estiver esperando
           if (newState.players.length >= 1 && newState.gameState === 'waiting') {
-            console.log('🚀 [QuizContext] Auto-iniciando jogo com', newState.players.length, 'jogador(es)');
-            return {
+            console.log('🚀 [QuizContext] CONDIÇÕES ATENDIDAS PARA AUTO-START!');
+            console.log('  - Jogadores:', newState.players.length);
+            console.log('  - Estado:', newState.gameState);
+            const gameStartState = {
               ...newState,
-              gameState: 'playing',
+              gameState: 'playing' as const,
               currentQuestion: mockQuestions[0],
               currentQuestionIndex: 0,
             };
+            console.log('🎮 [QuizContext] INICIANDO JOGO AUTOMATICAMENTE!', gameStartState);
+            return gameStartState;
           }
           
+          console.log('⏸️ [QuizContext] Auto-start NÃO executado - condições não atendidas');
           return newState;
         });
         break;
@@ -164,24 +171,26 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
         
       case 'PLAYER_ANSWER':
-        const { playerId, answerIndex } = message.data;
-        const player = state.players.find(p => p.id === playerId);
-        const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
+        setState(prev => {
+          const { playerId, answerIndex } = message.data;
+          const player = prev.players.find(p => p.id === playerId);
+          const isCorrect = answerIndex === prev.currentQuestion?.correctAnswer;
 
-        if (player && isCorrect) {
-          setState(prev => ({
-            ...prev,
-            players: prev.players.map(p =>
-              p.id === playerId ? { ...p, score: p.score + 10 } : p
-            ),
-            gameState: 'results',
-          }));
-        } else {
-          setState(prev => ({
-            ...prev,
-            gameState: 'results',
-          }));
-        }
+          if (player && isCorrect) {
+            return {
+              ...prev,
+              players: prev.players.map(p =>
+                p.id === playerId ? { ...p, score: p.score + 10 } : p
+              ),
+              gameState: 'results',
+            };
+          } else {
+            return {
+              ...prev,
+              gameState: 'results',
+            };
+          }
+        });
         break;
         
       case 'GAME_STATE_CHANGE':
@@ -193,11 +202,16 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       case 'SYNC_REQUEST':
         console.log('🔄 [QuizContext] SYNC_REQUEST recebido. Rota atual:', window.location.pathname);
-        console.log('📊 [QuizContext] Estado atual para sincronização:', state);
         // Responder com o estado atual (apenas a TV)
         if (window.location.pathname === '/tv' && sendNetworkMessage) {
-          console.log('📺 [QuizContext] Enviando estado atual para sincronização:', state);
-          sendNetworkMessage('GAME_STATE_CHANGE', state);
+          // Usar setTimeout para garantir que temos o estado mais atual
+          setTimeout(() => {
+            setState(currentState => {
+              console.log('📺 [QuizContext] Enviando estado atual para sincronização:', currentState);
+              sendNetworkMessage('GAME_STATE_CHANGE', currentState);
+              return currentState;
+            });
+          }, 100);
         } else {
           console.log('🚫 [QuizContext] Não é TV, ignorando SYNC_REQUEST');
         }
@@ -217,7 +231,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         break;
     }
-  }, [state.players, state.currentQuestion]);
+  }, []);  // Remover dependências para evitar problemas de closure
 
   // Inicializar network
   const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
@@ -276,15 +290,18 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     console.log('➕ [QuizContext] addPlayer chamado localmente:', newPlayer);
-    console.log('📊 [QuizContext] Estado atual antes de adicionar:', {
-      playersCount: state.players.length,
-      gameState: state.gameState
-    });
+    console.log('📊 [QuizContext] Estado atual antes de adicionar:');
+    console.log('  - playersCount:', state.players.length);
+    console.log('  - gameState:', state.gameState);
+    console.log('  - currentPath:', window.location.pathname);
 
     // Enviar via rede PRIMEIRO
     console.log('📡 [QuizContext] Enviando PLAYER_JOINED via rede');
     if (sendNetworkMessage) {
       sendNetworkMessage('PLAYER_JOINED', newPlayer);
+      console.log('✅ [QuizContext] Mensagem PLAYER_JOINED enviada com sucesso');
+    } else {
+      console.error('❌ [QuizContext] sendNetworkMessage não disponível!');
     }
 
     // NÃO atualizar estado local aqui - deixar o handleNetworkMessage cuidar disso
