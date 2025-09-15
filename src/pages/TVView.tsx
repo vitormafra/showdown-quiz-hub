@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import QuizLogo from '@/components/QuizLogo';
 import { QrCode, Trophy, Users, PlayCircle, SkipForward, UserCircle } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 
 const TVView: React.FC = () => {
   const { state, startGame, nextQuestion, resetGame } = useQuiz();
@@ -43,13 +42,11 @@ const TVView: React.FC = () => {
           <div className="text-center">
             <Card className="quiz-card-gradient border-white/10 p-12 mb-8">
               <div className="mb-8">
-                <div className="w-64 h-64 mx-auto mb-6 bg-white p-4 rounded-3xl">
-                  <QRCodeSVG 
-                    value={`${window.location.origin}/player`}
-                    size={224}
-                    level="M"
-                    includeMargin={false}
-                  />
+                <div className="w-64 h-64 mx-auto mb-6 bg-white/10 rounded-3xl flex flex-col items-center justify-center border-4 border-dashed border-white/30">
+                  <QrCode className="w-20 h-20 mb-4 text-white" />
+                  <p className="text-white/80 text-lg font-bold">Escaneie o QR Code</p>
+                  <p className="text-white/60">para participar</p>
+                  <p className="text-white/40 text-sm mt-2">Acesse: /player</p>
                 </div>
                 <h2 className="text-4xl font-bold text-white mb-4">
                   Aguardando Jogadores...
