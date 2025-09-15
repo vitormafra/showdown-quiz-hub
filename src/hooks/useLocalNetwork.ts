@@ -90,11 +90,11 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
           console.log('🔌 [useLocalNetwork] WebSocket desconectado');
           isConnectedRef.current = false;
           
-          // Tentar reconectar após 3 segundos
+          // Tentar reconectar após 5 segundos (mais tempo para evitar reconexões frequentes)
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log('🔄 [useLocalNetwork] Tentando reconectar WebSocket...');
             connectWebSocket();
-          }, 3000);
+          }, 5000);
         };
 
         wsRef.current.onerror = (error) => {
@@ -142,11 +142,11 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     // Iniciar WebSocket
     connectWebSocket();
 
-    // Configurar heartbeat se for um jogador
+    // Configurar heartbeat se for um jogador (menos frequente para reduzir "piscadas")
     if (playerId) {
       heartbeatIntervalRef.current = setInterval(() => {
         sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
-      }, 5000); // Heartbeat a cada 5 segundos
+      }, 8000); // Heartbeat a cada 8 segundos (menos agressivo)
     }
 
     return () => {

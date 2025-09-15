@@ -83,6 +83,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Controle de heartbeat e jogadores conectados
   const lastHeartbeatRef = useRef<{ [playerId: string]: number }>({});
+  const connectionTimeoutRef = useRef<{ [playerId: string]: NodeJS.Timeout }>({});
   
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
@@ -132,13 +133,28 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { playerId: heartbeatPlayerId } = message.data;
         lastHeartbeatRef.current[heartbeatPlayerId] = Date.now();
         
-        // Marcar jogador como conectado se não estiver
-        setState(prev => ({
-          ...prev,
-          players: prev.players.map(p => 
-            p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
-          ),
-        }));
+        // Debounce para evitar mudanças rápidas de estado de conexão
+        if (connectionTimeoutRef.current[heartbeatPlayerId]) {
+          clearTimeout(connectionTimeoutRef.current[heartbeatPlayerId]);
+        }
+        
+        // Marcar jogador como conectado com debounce
+        connectionTimeoutRef.current[heartbeatPlayerId] = setTimeout(() => {
+          setState(prev => {
+            const player = prev.players.find(p => p.id === heartbeatPlayerId);
+            if (player && !player.isConnected) {
+              console.log('💚 [QuizContext] Jogador', player.name, 'conectado via heartbeat');
+              return {
+                ...prev,
+                players: prev.players.map(p => 
+                  p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
+                ),
+              };
+            }
+            return prev;
+          });
+          delete connectionTimeoutRef.current[heartbeatPlayerId];
+        }, 1000); // Aguardar 1 segundo antes de marcar como conectado
         break;
         
       case 'PLAYER_DISCONNECT':
@@ -224,28 +240,40 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Inicializar network
   const { sendMessage: sendNetworkMessage } = useLocalNetwork(handleNetworkMessage);
 
-  // Monitor heartbeats para detectar jogadores desconectados
+  // Monitor heartbeats para detectar jogadores desconectados (com debounce)
   useEffect(() => {
     const checkHeartbeats = setInterval(() => {
       const now = Date.now();
-      const timeout = 15000; // 15 segundos sem heartbeat = desconectado
+      const timeout = 30000; // 30 segundos sem heartbeat = desconectado (mais tolerante)
       
-      setState(prev => ({
-        ...prev,
-        players: prev.players.map(p => {
+      setState(prev => {
+        let hasChanges = false;
+        const updatedPlayers = prev.players.map(p => {
           const lastHeartbeat = lastHeartbeatRef.current[p.id];
-          const isConnected = lastHeartbeat && (now - lastHeartbeat) < timeout;
+          const shouldBeConnected = lastHeartbeat && (now - lastHeartbeat) < timeout;
           
-          if (p.isConnected && !isConnected) {
-            console.log('Jogador', p.name, 'desconectou (timeout)');
+          if (p.isConnected !== shouldBeConnected) {
+            hasChanges = true;
+            if (!shouldBeConnected) {
+              console.log('⚠️ [QuizContext] Jogador', p.name, 'marcado como desconectado (timeout 30s)');
+            } else {
+              console.log('✅ [QuizContext] Jogador', p.name, 'reconectado');
+            }
           }
           
-          return { ...p, isConnected: isConnected || false };
-        }),
-      }));
-    }, 5000);
+          return { ...p, isConnected: shouldBeConnected || false };
+        });
+        
+        // Só atualizar estado se houve mudanças para reduzir re-renders
+        return hasChanges ? { ...prev, players: updatedPlayers } : prev;
+      });
+    }, 10000); // Verificar a cada 10 segundos (menos frequente)
 
-    return () => clearInterval(checkHeartbeats);
+    return () => {
+      clearInterval(checkHeartbeats);
+      // Limpar timeouts pendentes
+      Object.values(connectionTimeoutRef.current).forEach(timeout => clearTimeout(timeout));
+    };
   }, []);
 
   // Backup localStorage (para persistência local)
