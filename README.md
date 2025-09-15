@@ -29,8 +29,8 @@ npm run dev
 
 ### Para acessar de outros dispositivos:
 1. Descobrir o IP local da máquina host
-2. Acessar `http://[SEU_IP]:8080/player` nos celulares
-3. Exemplo: `http://192.168.1.100:8080/player`
+2. Acessar `http://192.168.0.14:8080/player` nos celulares
+3. O servidor WebSocket estará em `ws://192.168.0.14:8081`
 
 ## 🔧 Tecnologia
 

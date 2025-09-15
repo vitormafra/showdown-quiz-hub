@@ -1,14 +1,14 @@
 const WebSocket = require('ws');
 
-// Criar servidor WebSocket na porta 3001
+// Criar servidor WebSocket no IP específico porta 8081
 const wss = new WebSocket.Server({ 
-  port: 3001,
-  host: '0.0.0.0' // Permite conexões de outros dispositivos na rede
+  port: 8081,
+  host: '192.168.0.14' // IP específico da rede
 });
 
 let connectedClients = new Set();
 
-console.log('🚀 Quiz WebSocket Server rodando na porta 3001');
+console.log('🚀 Quiz WebSocket Server rodando em 192.168.0.14:8081');
 console.log('📡 Aguardando conexões de dispositivos...');
 
 wss.on('connection', function connection(ws, req) {
@@ -56,5 +56,5 @@ wss.on('connection', function connection(ws, req) {
   }));
 });
 
-console.log('🌐 Para acessar de outros dispositivos: ws://[SEU_IP]:3001');
+console.log('🌐 Para acessar de outros dispositivos: ws://192.168.0.14:8081');
 console.log('💡 Use "node src/server/websocket-server.js" para iniciar');

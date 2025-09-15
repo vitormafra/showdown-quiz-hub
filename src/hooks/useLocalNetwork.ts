@@ -19,9 +19,8 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     // Tentar conectar via WebSocket primeiro (para comunicação entre dispositivos)
     const connectWebSocket = () => {
       try {
-        // Detectar IP local automaticamente
-        const currentHost = window.location.hostname;
-        const wsUrl = `ws://${currentHost}:3001`;
+        // Usar IP específico
+        const wsUrl = `ws://192.168.0.14:8081`;
         
         console.log('🌐 [useLocalNetwork] Tentando conectar WebSocket:', wsUrl);
         wsRef.current = new WebSocket(wsUrl);
