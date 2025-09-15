@@ -7,19 +7,18 @@ const port = process.argv[2] || 8081;
 const wss = new WebSocketServer({ 
   port: parseInt(port),
   host: '0.0.0.0', // Aceitar conexões de qualquer IP
-  // Configurações para heartbeat mais tranquilo
   perMessageDeflate: false,
   clientTracking: true,
   maxPayload: 16 * 1024 * 1024 // 16MB
 });
 
-let deviceIdMap = new Map(); // Mapear conexões para deviceIds
+let deviceIdMap = new Map(); 
 let connectedClients = new Set();
-let clientHeartbeats = new Map(); // Controlar heartbeats mais tranquilos
+let clientHeartbeats = new Map();
 
 // Configurações de heartbeat mais estáveis
-const HEARTBEAT_INTERVAL = 20000; // 20 segundos entre pings
-const HEARTBEAT_TIMEOUT = 60000;  // 60 segundos antes de considerar desconexão
+const HEARTBEAT_INTERVAL = 20000; // 20 segundos
+const MAX_MISSED_PINGS = 3;       // tolera até 3 pings (~1 minuto)
 
 console.log(`🚀 Quiz WebSocket Server rodando na porta ${port}`);
 console.log('📡 Aguardando conexões de dispositivos...');
@@ -30,43 +29,47 @@ wss.on('connection', function connection(ws, req) {
   
   connectedClients.add(ws);
   
-  // Configurar heartbeat tranquilo para este cliente
+  // Configurar heartbeat
   ws.isAlive = true;
+  ws.missedPings = 0;
+
   ws.on('pong', () => { 
     ws.isAlive = true; 
+    ws.missedPings = 0;
   });
   
-  // Iniciar heartbeat personalizado
   const heartbeatInterval = setInterval(() => {
-    if (ws.isAlive === false) {
-      clearInterval(heartbeatInterval);
-      clientHeartbeats.delete(ws);
-      return ws.terminate();
+    if (!ws.isAlive) {
+      ws.missedPings++;
+      console.log(`⚠️ Cliente ${clientIP} não respondeu (${ws.missedPings}/${MAX_MISSED_PINGS})`);
+      if (ws.missedPings >= MAX_MISSED_PINGS) {
+        console.log(`❌ Cliente desconectado por inatividade: ${clientIP}`);
+        clearInterval(heartbeatInterval);
+        clientHeartbeats.delete(ws);
+        return ws.terminate();
+      }
     }
-    
     ws.isAlive = false;
     ws.ping();
   }, HEARTBEAT_INTERVAL);
   
   clientHeartbeats.set(ws, heartbeatInterval);
 
-  // Quando receber mensagem, retransmitir para todos os outros clientes
+  // Quando receber mensagem, retransmitir
   ws.on('message', function incoming(data) {
     try {
       const message = JSON.parse(data);
       console.log(`📨 [Server] Mensagem recebida:`, message);
       
-      // Associar deviceId à conexão
       if (message.deviceId) {
         deviceIdMap.set(ws, message.deviceId);
         console.log(`🔗 [Server] Associando deviceId: ${message.deviceId}`);
       }
       
-      // Retransmitir para todos os outros clientes conectados
       connectedClients.forEach(client => {
-        if (client !== ws && client.readyState === 1) { // WebSocket.OPEN = 1
+        if (client !== ws && client.readyState === 1) {
           client.send(data);
-          console.log(`📤 [Server] Retransmitindo para outro dispositivo:`, message.type);
+          console.log(`📤 [Server] Retransmitindo:`, message.type);
         }
       });
     } catch (error) {
@@ -74,49 +77,35 @@ wss.on('connection', function connection(ws, req) {
     }
   });
 
-  // Quando cliente desconectar
   ws.on('close', function close() {
     console.log(`📱 Cliente desconectado: ${clientIP}`);
-    
-    // Limpar heartbeat
     if (clientHeartbeats.has(ws)) {
       clearInterval(clientHeartbeats.get(ws));
       clientHeartbeats.delete(ws);
     }
-    
-    // Remover deviceId associado
     if (deviceIdMap.has(ws)) {
       const deviceId = deviceIdMap.get(ws);
       console.log(`🗑️ [Server] Removendo deviceId: ${deviceId}`);
       deviceIdMap.delete(ws);
     }
-    
     connectedClients.delete(ws);
-    
-    // Mostrar clientes conectados
     console.log(`👥 Clientes conectados (${connectedClients.size}):`, 
       Array.from(deviceIdMap.values()));
   });
 
-  // Tratar erros
   ws.on('error', function error(err) {
     console.error('❌ [Server] Erro WebSocket:', err);
-    
-    // Limpar heartbeat
     if (clientHeartbeats.has(ws)) {
       clearInterval(clientHeartbeats.get(ws));
       clientHeartbeats.delete(ws);
     }
-    
     connectedClients.delete(ws);
-    
-    // Remover deviceId associado
     if (deviceIdMap.has(ws)) {
       deviceIdMap.delete(ws);
     }
   });
 
-  // Enviar mensagem de boas-vindas
+  // Mensagem de boas-vindas
   ws.send(JSON.stringify({
     type: 'SERVER_READY',
     data: { message: 'Conectado ao servidor do quiz!' },
