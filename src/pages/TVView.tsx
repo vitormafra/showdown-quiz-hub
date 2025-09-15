@@ -7,7 +7,7 @@ import QuizLogo from '@/components/QuizLogo';
 import { QrCode, Trophy, Users, PlayCircle, SkipForward } from 'lucide-react';
 
 const TVView: React.FC = () => {
-  const { state, startGame, nextQuestion, resetGame } = useQuiz();
+  const { state, startGame, nextQuestion, resetGame, startDemo } = useQuiz();
 
   const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
   const activePlayerName = state.activePlayer 
@@ -73,10 +73,16 @@ const TVView: React.FC = () => {
             )}
 
             {state.players.length >= 2 && (
-              <Button onClick={startGame} size="lg" className="quiz-gradient-bg hover:opacity-90 text-xl px-8 py-4 quiz-glow">
-                <PlayCircle className="w-6 h-6 mr-2" />
-                Iniciar Quiz
-              </Button>
+              <div className="flex gap-4 justify-center">
+                <Button onClick={startGame} size="lg" className="quiz-gradient-bg hover:opacity-90 text-xl px-8 py-4 quiz-glow">
+                  <PlayCircle className="w-6 h-6 mr-2" />
+                  Iniciar Quiz Manual
+                </Button>
+                <Button onClick={startDemo} size="lg" className="bg-quiz-success hover:opacity-90 text-xl px-8 py-4 quiz-success-glow">
+                  <PlayCircle className="w-6 h-6 mr-2" />
+                  Demo Automático
+                </Button>
+              </div>
             )}
           </div>
         )}

@@ -32,6 +32,7 @@ interface QuizContextType {
   submitAnswer: (playerId: string, answerIndex: number) => void;
   nextQuestion: () => void;
   resetGame: () => void;
+  startDemo: () => void;
 }
 
 const QuizContext = createContext<QuizContextType | undefined>(undefined);
@@ -39,39 +40,58 @@ const QuizContext = createContext<QuizContextType | undefined>(undefined);
 const mockQuestions: Question[] = [
   {
     id: '1',
-    question: 'Qual é a capital do Brasil?',
-    options: ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Salvador'],
-    correctAnswer: 2,
+    question: 'O que é a FOTOPOP?',
+    options: ['Uma rede social', 'Empresa de photo booths premium', 'App de edição', 'Loja de câmeras'],
+    correctAnswer: 1,
   },
   {
     id: '2',
-    question: 'Quantos planetas existem no sistema solar?',
-    options: ['7', '8', '9', '10'],
+    question: 'Para que tipo de eventos a FOTOPOP oferece serviços?',
+    options: ['Apenas casamentos', 'Eventos corporativos e luxo', 'Festa infantil', 'Apenas aniversários'],
     correctAnswer: 1,
   },
   {
     id: '3',
-    question: 'Quem pintou a Mona Lisa?',
-    options: ['Van Gogh', 'Picasso', 'Leonardo da Vinci', 'Monet'],
-    correctAnswer: 2,
+    question: 'Qual é o diferencial dos photo booths da FOTOPOP?',
+    options: ['Mais barato', 'Tecnologia premium e experiências interativas', 'Apenas preto e branco', 'Sem impressão'],
+    correctAnswer: 1,
   },
   {
     id: '4',
-    question: 'Qual é o maior oceano do mundo?',
-    options: ['Atlântico', 'Índico', 'Ártico', 'Pacífico'],
-    correctAnswer: 3,
+    question: 'Além de photo booths tradicionais, que outros serviços a FOTOPOP oferece?',
+    options: ['Apenas fotos', 'Glambot e experiências customizadas', 'Só vídeos', 'Apenas selfies'],
+    correctAnswer: 1,
   },
   {
     id: '5',
-    question: 'Em que ano o homem pisou na Lua pela primeira vez?',
-    options: ['1967', '1969', '1971', '1973'],
+    question: 'Quantos clientes satisfeitos a FOTOPOP já atendeu?',
+    options: ['Menos de 100', 'Mais de 970', 'Exatamente 500', 'Não divulga'],
     correctAnswer: 1,
   },
 ];
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, setState] = useState<QuizState>({
-    players: [],
+    players: [
+      {
+        id: 'demo1',
+        name: 'Ana',
+        score: 0,
+        isConnected: true,
+      },
+      {
+        id: 'demo2', 
+        name: 'Carlos',
+        score: 0,
+        isConnected: true,
+      },
+      {
+        id: 'demo3',
+        name: 'Marina',
+        score: 0,
+        isConnected: true,
+      },
+    ],
     currentQuestion: null,
     currentQuestionIndex: 0,
     gameState: 'waiting',
@@ -170,6 +190,39 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   };
 
+  const startDemo = () => {
+    startGame();
+    
+    // Simulate automatic gameplay
+    setTimeout(() => {
+      const demoPlayers = ['demo1', 'demo2', 'demo3'];
+      let currentQuestionIdx = 0;
+      
+      const playRound = () => {
+        if (currentQuestionIdx >= mockQuestions.length) return;
+        
+        // Random player buzzes in
+        const randomPlayer = demoPlayers[Math.floor(Math.random() * demoPlayers.length)];
+        buzzIn(randomPlayer);
+        
+        setTimeout(() => {
+          // Random answer (sometimes correct, sometimes wrong)
+          const correctAnswer = mockQuestions[currentQuestionIdx].correctAnswer;
+          const randomAnswer = Math.random() < 0.7 ? correctAnswer : Math.floor(Math.random() * 4);
+          
+          submitAnswer(randomPlayer, randomAnswer);
+          currentQuestionIdx++;
+          
+          if (currentQuestionIdx < mockQuestions.length) {
+            setTimeout(playRound, 4000);
+          }
+        }, 2000);
+      };
+      
+      playRound();
+    }, 1000);
+  };
+
   return (
     <QuizContext.Provider
       value={{
@@ -180,6 +233,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         submitAnswer,
         nextQuestion,
         resetGame,
+        startDemo,
       }}
     >
       {children}
