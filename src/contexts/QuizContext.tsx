@@ -129,12 +129,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 ),
                 timestamp: Date.now()
               };
-              // TV sempre broadcast o estado completo para todos COM DELAY para evitar conflitos
+              // TV broadcast o estado completo para todos
               if (sendNetworkMessageRef.current) {
-                setTimeout(() => {
-                  console.log('📡 [QuizContext] TV broadcasting estado após reconexão');
-                  sendNetworkMessageRef.current?.('STATE_SYNC', newState);
-                }, 500); // Delay maior para evitar conflitos
+                console.log('📡 [QuizContext] TV broadcasting estado após reconexão');
+                sendNetworkMessageRef.current('STATE_SYNC', newState);
               }
               return newState;
             }
@@ -146,12 +144,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               timestamp: Date.now()
             };
             
-            // TV sempre broadcast o estado completo para todos COM DELAY para evitar conflitos
+            // TV broadcast o estado completo para todos
             if (sendNetworkMessageRef.current) {
-              setTimeout(() => {
-                console.log('📡 [QuizContext] TV broadcasting estado após novo jogador');
-                sendNetworkMessageRef.current?.('STATE_SYNC', newState);
-              }, 500); // Delay maior para evitar conflitos
+              console.log('📡 [QuizContext] TV broadcasting estado após novo jogador');
+              sendNetworkMessageRef.current('STATE_SYNC', newState);
             }
             
             return newState;
@@ -262,9 +258,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           const messageTimestamp = message.data.timestamp || 0;
           
-          // Verificação mais flexível de timestamp para evitar dessincronização
+          // Verificação mais rigorosa de timestamp para evitar loops
           const timeDiff = messageTimestamp - lastSyncRef.current;
-          const shouldSync = timeDiff > -10000; // Aceitar se não for muito antigo (10s mais tolerante)
+          const shouldSync = timeDiff > 1000; // Só sincronizar se for pelo menos 1 segundo mais recente
           
           if (shouldSync) {
             console.log('🔄 [QuizContext] Jogador sincronizando com TV:', {
@@ -354,23 +350,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sendNetworkMessageRef.current = sendNetworkMessage;
   }, [sendNetworkMessage]);
 
-  // Sincronização forçada periódica (apenas TV)
-  useEffect(() => {
-    if (!isTV || !sendNetworkMessage) return;
-    
-    const forcedSyncInterval = setInterval(() => {
-      console.log('🔄 [QuizContext] TV fazendo sincronização forçada');
-      setState(currentState => {
-        sendNetworkMessage('STATE_SYNC', {
-          ...currentState,
-          timestamp: Date.now()
-        });
-        return currentState;
-      });
-    }, 8000); // A cada 8 segundos
-    
-    return () => clearInterval(forcedSyncInterval);
-  }, [isTV, sendNetworkMessage]);
+  // Sincronização apenas quando necessário (removido loop forçado)
+  // A TV só sincroniza quando há mudanças reais de estado
 
   // Monitor heartbeats - apenas a TV faz isso
   useEffect(() => {

@@ -25,6 +25,16 @@ const PlayerView: React.FC = () => {
   const currentPlayer = localPlayerId && Array.isArray(state.players) ? 
     state.players.find(p => p?.id === localPlayerId) : null;
   const isActivePlayer = state.activePlayer === localPlayerId;
+  
+  // Log para debug
+  console.log('🔍 [PlayerView] Estado atual:', {
+    localPlayerId,
+    localPlayerName,
+    currentPlayer: currentPlayer ? currentPlayer.name : 'não encontrado',
+    gameState: state.gameState,
+    totalPlayers: state.players.length,
+    isActivePlayer
+  });
 
   // Configurar rede local com heartbeat se jogador estiver conectado
   const { sendMessage, deviceId } = useLocalNetwork((message) => {

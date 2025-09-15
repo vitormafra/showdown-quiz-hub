@@ -1,7 +1,7 @@
 import { WebSocketServer } from 'ws';
 
-// Detectar automaticamente a porta baseada nos argumentos ou usar 8081 como padrão
-const port = process.argv[2] || 8081;
+// Sempre usar porta 8080 para o WebSocket (ou porta especificada via argumento)
+const port = process.argv[2] || 8080;
 
 // Criar servidor WebSocket no IP específico com configurações mais estáveis
 const wss = new WebSocketServer({ 

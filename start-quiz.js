@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
-const { networkInterfaces } = require('os');
-const path = require('path');
+import { spawn } from 'child_process';
+import { networkInterfaces } from 'os';
 
 // Função para detectar IP local da rede WiFi
 function getLocalIP() {
@@ -26,8 +25,8 @@ function getLocalIP() {
 }
 
 // Detectar porta do argumento ou usar padrão
-const webPort = process.argv[2] || '8080';
-const wsPort = process.argv[3] || (parseInt(webPort) + 1).toString();
+const webPort = process.argv[2] || '8081'; // Porta para o front-end (Vite)
+const wsPort = '8080'; // Porta fixa para o WebSocket
 
 const localIP = getLocalIP();
 
@@ -36,7 +35,8 @@ console.log(`📱 Acesso local: http://localhost:${webPort}`);
 console.log(`🌐 Acesso na rede: http://${localIP}:${webPort}`);
 console.log('📺 Para TV: acesse /tv');
 console.log('📱 Para Jogadores: acessem /player');
-console.log(`🔗 WebSocket: ws://${localIP}:${wsPort}`);
+console.log(`🔗 WebSocket (PORTA FIXA): ws://${localIP}:${wsPort}`);
+console.log('💡 O WebSocket sempre usa a porta 8080 para garantir conexão entre dispositivos');
 console.log('');
 
 // Iniciar WebSocket Server na porta correta
