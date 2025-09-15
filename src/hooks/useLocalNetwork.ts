@@ -258,29 +258,29 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     // Iniciar WebSocket
     connectWebSocket();
 
-    // Configurar heartbeat adaptável baseado na qualidade da conexão
+  // Configurar heartbeat e sincronização robusta
     if (playerId) {
       const startHeartbeat = () => {
         if (heartbeatIntervalRef.current) {
           clearInterval(heartbeatIntervalRef.current);
         }
         
-        // Interval baseado na qualidade da conexão
-        const getHeartbeatInterval = () => {
-          switch (connectionQualityRef.current) {
-            case 'good': return 15000; // 15s para conexão boa
-            case 'unstable': return 10000; // 10s para conexão instável  
-            case 'poor': return 5000; // 5s para conexão ruim
-            default: return 15000;
-          }
-        };
+        // Heartbeat fixo e confiável
+        const heartbeatInterval = 8000; // 8 segundos fixo para estabilidade
         
         const updateHeartbeat = () => {
-          const interval = getHeartbeatInterval();
           heartbeatIntervalRef.current = setTimeout(() => {
             sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
-            updateHeartbeat(); // Reagendar baseado na qualidade atual
-          }, interval);
+            
+            // Solicitar sincronização a cada 3 heartbeats (24s)
+            if (Math.random() < 0.33) {
+              setTimeout(() => {
+                sendMessage('SYNC_REQUEST', {});
+              }, 1000);
+            }
+            
+            updateHeartbeat();
+          }, heartbeatInterval);
         };
         
         updateHeartbeat();
@@ -288,14 +288,20 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
       
       startHeartbeat();
       
-      // Monitorar qualidade da conexão a cada 30 segundos
-      const qualityCheckInterval = setInterval(() => {
+      // Monitorar e solicitar sincronização quando necessário
+      const syncCheckInterval = setInterval(() => {
         updateConnectionQuality();
-      }, 30000);
+        
+        // Se conexão está ruim, solicitar sincronização
+        if (connectionQualityRef.current === 'poor') {
+          console.log('📡 [useLocalNetwork] Conexão ruim, solicitando sincronização');
+          sendMessage('SYNC_REQUEST', {});
+        }
+      }, 15000); // Verificar a cada 15 segundos
       
-      // Cleanup do intervalo de qualidade
+      // Cleanup dos intervalos
       return () => {
-        clearInterval(qualityCheckInterval);
+        clearInterval(syncCheckInterval);
       };
     }
 

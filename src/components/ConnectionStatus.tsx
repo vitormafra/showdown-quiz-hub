@@ -38,13 +38,13 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   };
 
   const getStatusText = () => {
-    if (status.isReconnecting) return 'Reconectando...';
-    if (!status.isConnected) return 'Desconectado';
+    if (status.isReconnecting) return 'Sincronizando...';
+    if (!status.isConnected) return 'Offline';
     
     switch (status.quality) {
-      case 'good': return 'Conectado';
-      case 'unstable': return 'Instável';
-      case 'poor': return 'Conexão fraca';
+      case 'good': return 'Sincronizado';
+      case 'unstable': return 'Sincronizando';
+      case 'poor': return 'Dessincronizado';
       default: return 'Conectado';
     }
   };

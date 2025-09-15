@@ -95,6 +95,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Identificar se este dispositivo é a TV (host autoritativo)
   const isTV = window.location.pathname === '/tv';
   
+  // Sistema de sincronização robusto
+  const lastSyncRef = useRef(Date.now());
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
     console.log('📡 [QuizContext] Processando mensagem:', message.type, message);
@@ -114,10 +118,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 players: prev.players.map(p => 
                   p.id === message.data.id ? { ...p, isConnected: true } : p
                 ),
+                timestamp: Date.now()
               };
               // TV sempre broadcast o estado completo para todos
               if (sendNetworkMessage) {
-                sendNetworkMessage('STATE_SYNC', newState);
+                setTimeout(() => {
+                  sendNetworkMessage('STATE_SYNC', newState);
+                }, 200);
               }
               return newState;
             }
@@ -126,11 +133,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const newState = {
               ...prev,
               players: [...prev.players, { ...message.data, isConnected: true }],
+              timestamp: Date.now()
             };
             
             // TV sempre broadcast o estado completo para todos
             if (sendNetworkMessage) {
-              sendNetworkMessage('STATE_SYNC', newState);
+              setTimeout(() => {
+                sendNetworkMessage('STATE_SYNC', newState);
+              }, 200);
             }
             
             return newState;
@@ -160,6 +170,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   players: prev.players.map(p => 
                     p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
                   ),
+                  timestamp: Date.now()
                 };
                 // TV broadcast estado atualizado
                 if (sendNetworkMessage) {
@@ -182,8 +193,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               ...prev,
               gameState: 'buzzing' as const,
               activePlayer: message.data.playerId,
+              timestamp: Date.now()
             };
-            // TV broadcast estado atualizado
+            // TV broadcast estado atualizado imediatamente
             if (sendNetworkMessage) {
               sendNetworkMessage('STATE_SYNC', newState);
             }
@@ -208,11 +220,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   p.id === playerId ? { ...p, score: p.score + 10 } : p
                 ),
                 gameState: 'results' as const,
+                timestamp: Date.now()
               };
             } else {
               newState = {
                 ...prev,
                 gameState: 'results' as const,
+                timestamp: Date.now()
               };
             }
             
@@ -227,10 +241,24 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
         
       case 'STATE_SYNC':
-        // Jogadores recebem estado completo da TV
-        if (!isTV) {
-          console.log('📱 [QuizContext] Jogador recebeu sincronização da TV:', message.data);
-          setState(message.data);
+        // Jogadores recebem estado completo da TV (com verificação de timestamp)
+        if (!isTV && message.data) {
+          const messageTimestamp = message.data.timestamp || 0;
+          
+          // Aceitar apenas se for mais recente
+          if (messageTimestamp > lastSyncRef.current) {
+            console.log('🔄 [QuizContext] Jogador sincronizando com TV:', message.data);
+            setState(message.data);
+            lastSyncRef.current = messageTimestamp;
+            
+            // Limpar timeout de sincronização pendente
+            if (syncTimeoutRef.current) {
+              clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = null;
+            }
+          } else {
+            console.log('⏭️ [QuizContext] Ignorando sincronização antiga');
+          }
         }
         break;
         
@@ -238,12 +266,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Apenas a TV responde com estado completo
         if (isTV && sendNetworkMessage) {
           console.log('📺 [QuizContext] TV enviando estado para sincronização');
-          setTimeout(() => {
-            setState(currentState => {
-              sendNetworkMessage('STATE_SYNC', currentState);
-              return currentState;
-            });
-          }, 100);
+          setState(currentState => {
+            const stateWithTimestamp = {
+              ...currentState,
+              timestamp: Date.now()
+            };
+            sendNetworkMessage('STATE_SYNC', stateWithTimestamp);
+            return stateWithTimestamp;
+          });
         }
         break;
         
@@ -254,14 +284,32 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('📱 [QuizContext] Solicitando sincronização da TV...');
           setTimeout(() => {
             sendNetworkMessage('SYNC_REQUEST', {});
-          }, 500);
+          }, 1000);
         }
         break;
     }
-  }, [isTV]);  // Depender apenas de isTV
+  }, [isTV]);  // Não incluir sendNetworkMessage aqui para evitar dependência circular
 
   // Inicializar network
   const { sendMessage: sendNetworkMessage, connectionStatus } = useLocalNetwork(handleNetworkMessage);
+
+  // Sincronização forçada periódica (apenas TV)
+  useEffect(() => {
+    if (!isTV || !sendNetworkMessage) return;
+    
+    const forcedSyncInterval = setInterval(() => {
+      console.log('🔄 [QuizContext] TV fazendo sincronização forçada');
+      setState(currentState => {
+        sendNetworkMessage('STATE_SYNC', {
+          ...currentState,
+          timestamp: Date.now()
+        });
+        return currentState;
+      });
+    }, 8000); // A cada 8 segundos
+    
+    return () => clearInterval(forcedSyncInterval);
+  }, [isTV, sendNetworkMessage]);
 
   // Monitor heartbeats - apenas a TV faz isso
   useEffect(() => {
