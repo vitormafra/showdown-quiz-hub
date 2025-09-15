@@ -87,6 +87,11 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Comunicação via rede local
   const handleNetworkMessage = (message: any) => {
     console.log('📡 [QuizContext] Processando mensagem:', message.type, message);
+    console.log('📊 [QuizContext] Estado antes da mensagem:', {
+      playersCount: state.players.length,
+      gameState: state.gameState,
+      currentPath: window.location.pathname
+    });
     
     switch (message.type) {
       case 'PLAYER_JOINED':
@@ -96,12 +101,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (existingPlayer) {
             console.log('🔄 [QuizContext] Jogador reconectou:', existingPlayer.name);
             // Jogador reconectou - marcar como conectado
-            return {
+            const newState = {
               ...prev,
               players: prev.players.map(p => 
                 p.id === message.data.id ? { ...p, isConnected: true } : p
               ),
             };
+            console.log('✅ [QuizContext] Estado após reconexão:', newState);
+            return newState;
           }
           
           console.log('✅ [QuizContext] Novo jogador adicionado:', message.data.name);
@@ -109,6 +116,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             players: [...prev.players, { ...message.data, isConnected: true }],
           };
+          console.log('📊 [QuizContext] Novo estado com jogador:', newState);
           
           // Auto-start se tiver pelo menos 1 jogador e o jogo estiver esperando
           if (newState.players.length >= 1 && newState.gameState === 'waiting') {
@@ -185,20 +193,27 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       case 'SYNC_REQUEST':
         console.log('🔄 [QuizContext] SYNC_REQUEST recebido. Rota atual:', window.location.pathname);
+        console.log('📊 [QuizContext] Estado atual para sincronização:', state);
         // Responder com o estado atual (apenas a TV)
         if (window.location.pathname === '/tv') {
           console.log('📺 [QuizContext] Enviando estado atual para sincronização:', state);
           sendNetworkMessage('GAME_STATE_CHANGE', state);
+        } else {
+          console.log('🚫 [QuizContext] Não é TV, ignorando SYNC_REQUEST');
         }
         break;
         
       case 'SERVER_READY':
         console.log('✅ [QuizContext] Servidor WebSocket pronto!');
+        console.log('🌐 [QuizContext] Rota atual:', window.location.pathname);
         // Solicitar sincronização quando servidor estiver pronto
         if (window.location.pathname !== '/tv') {
+          console.log('📱 [QuizContext] Solicitando sincronização como jogador...');
           setTimeout(() => {
             sendNetworkMessage('SYNC_REQUEST', {});
           }, 500);
+        } else {
+          console.log('📺 [QuizContext] TV não precisa solicitar sincronização');
         }
         break;
     }
@@ -259,21 +274,19 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isConnected: true,
     };
 
-    console.log('➕ [QuizContext] Adicionando jogador:', newPlayer);
+    console.log('➕ [QuizContext] addPlayer chamado localmente:', newPlayer);
+    console.log('📊 [QuizContext] Estado atual antes de adicionar:', {
+      playersCount: state.players.length,
+      gameState: state.gameState
+    });
 
     // Enviar via rede PRIMEIRO
-    console.log('📡 [QuizContext] Enviando PLAYER_JOINED via BroadcastChannel');
+    console.log('📡 [QuizContext] Enviando PLAYER_JOINED via rede');
     sendNetworkMessage('PLAYER_JOINED', newPlayer);
 
-    // Depois atualizar estado local
-    setState(prev => {
-      const newState = {
-        ...prev,
-        players: [...prev.players, newPlayer],
-      };
-      console.log('✅ [QuizContext] Estado local atualizado:', newState);
-      return newState;
-    });
+    // NÃO atualizar estado local aqui - deixar o handleNetworkMessage cuidar disso
+    // para evitar duplicação e garantir consistência
+    console.log('⏳ [QuizContext] Aguardando processamento via handleNetworkMessage...');
 
     return newPlayer.id;
   };

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getNetworkConfig, logNetworkInfo } from '@/utils/networkConfig';
 
 interface NetworkMessage {
   type: 'PLAYER_JOINED' | 'PLAYER_BUZZ' | 'PLAYER_ANSWER' | 'GAME_STATE_CHANGE' | 'SYNC_REQUEST' | 'HEARTBEAT' | 'PLAYER_DISCONNECT' | 'SERVER_READY';
@@ -21,13 +22,16 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
   }, []);
 
   useEffect(() => {
+    // Configuração automática de rede
+    const networkConfig = logNetworkInfo();
+
     // Tentar conectar via WebSocket primeiro (para comunicação entre dispositivos)
     const connectWebSocket = () => {
       try {
-        // Usar localhost para desenvolvimento
-        const wsUrl = `ws://localhost:8081`;
+        const wsUrl = networkConfig.websocketUrl;
         
         console.log('🌐 [useLocalNetwork] Tentando conectar WebSocket:', wsUrl);
+        console.log('🔧 [useLocalNetwork] Configuração de rede:', networkConfig);
         wsRef.current = new WebSocket(wsUrl);
 
         wsRef.current.onopen = () => {

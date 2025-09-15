@@ -1,8 +1,11 @@
 import { WebSocketServer } from 'ws';
 
-// Criar servidor WebSocket no IP específico porta 8081
+// Detectar automaticamente a porta baseada nos argumentos ou usar 8081 como padrão
+const port = process.argv[2] || 8081;
+
+// Criar servidor WebSocket no IP específico
 const wss = new WebSocketServer({ 
-  port: 8081,
+  port: parseInt(port),
   host: '0.0.0.0' // Aceitar conexões de qualquer IP
 });
 
@@ -10,7 +13,7 @@ let deviceIdMap = new Map(); // Mapear conexões para deviceIds
 
 let connectedClients = new Set();
 
-console.log('🚀 Quiz WebSocket Server rodando na porta 8081');
+console.log(`🚀 Quiz WebSocket Server rodando na porta ${port}`);
 console.log('📡 Aguardando conexões de dispositivos...');
 
 wss.on('connection', function connection(ws, req) {
@@ -81,5 +84,6 @@ wss.on('connection', function connection(ws, req) {
   }));
 });
 
-console.log('🌐 Para acessar de outros dispositivos: ws://SEU_IP:8081');
-console.log('💡 Use "node --experimental-modules src/server/websocket-server.js" para iniciar');
+console.log(`🌐 Para acessar de outros dispositivos: ws://SEU_IP:${port}`);
+console.log('💡 Use "node src/server/websocket-server.js [porta]" para iniciar');
+console.log('💡 Exemplo: node src/server/websocket-server.js 8081');
