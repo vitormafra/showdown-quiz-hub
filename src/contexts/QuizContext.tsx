@@ -158,37 +158,23 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         break;
         
       case 'HEARTBEAT':
-        // Apenas a TV gerencia heartbeats
+        // Heartbeat simplificado - apenas manter jogador conectado
         if (isTV) {
           const { playerId: heartbeatPlayerId } = message.data;
-          lastHeartbeatRef.current[heartbeatPlayerId] = Date.now();
-          
-          if (connectionTimeoutRef.current[heartbeatPlayerId]) {
-            clearTimeout(connectionTimeoutRef.current[heartbeatPlayerId]);
-          }
-          
-          connectionTimeoutRef.current[heartbeatPlayerId] = setTimeout(() => {
-            setState(prev => {
-              const player = prev.players.find(p => p.id === heartbeatPlayerId);
-              if (player && !player.isConnected) {
-                console.log('💚 [QuizContext] TV marcou jogador conectado:', player.name);
-                const newState = {
-                  ...prev,
-                  players: prev.players.map(p => 
-                    p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
-                  ),
-                  timestamp: Date.now()
-                };
-                // TV broadcast estado atualizado
-                if (sendNetworkMessageRef.current) {
-                  sendNetworkMessageRef.current('STATE_SYNC', newState);
-                }
-                return newState;
-              }
-              return prev;
-            });
-            delete connectionTimeoutRef.current[heartbeatPlayerId];
-          }, 1000);
+          setState(prev => {
+            const player = prev.players.find(p => p.id === heartbeatPlayerId);
+            if (player && !player.isConnected) {
+              console.log('💚 [QuizContext] Jogador reconectado via heartbeat:', player.name);
+              return {
+                ...prev,
+                players: prev.players.map(p => 
+                  p.id === heartbeatPlayerId ? { ...p, isConnected: true } : p
+                ),
+                timestamp: Date.now()
+              };
+            }
+            return prev;
+          });
         }
         break;
         
@@ -323,12 +309,20 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       case 'SERVER_READY':
         console.log('✅ [QuizContext] Servidor WebSocket pronto!');
-        // Jogadores solicitam sincronização quando servidor estiver pronto
-        if (!isTV && sendNetworkMessageRef.current) {
-          console.log('📱 [QuizContext] Solicitando sincronização da TV...');
-          setTimeout(() => {
-            sendNetworkMessageRef.current?.('SYNC_REQUEST', {});
-          }, 1000);
+        // Removido: solicitação automática de sincronização causa loops
+        // A TV vai sincronizar quando houver mudanças reais
+        break;
+        
+      case 'GAME_RESET':
+        // Todos os dispositivos processam reset
+        console.log('🔄 [QuizContext] Recebido comando de reset do jogo');
+        if (!isTV && message.data) {
+          // Limpar dados locais nos jogadores
+          localStorage.clear();
+          
+          // Aplicar estado resetado
+          setState(message.data);
+          console.log('✅ [QuizContext] Jogador aplicou reset do jogo');
         }
         break;
         
@@ -353,52 +347,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Sincronização apenas quando necessário (removido loop forçado)
   // A TV só sincroniza quando há mudanças reais de estado
 
-  // Monitor heartbeats - apenas a TV faz isso
-  useEffect(() => {
-    if (!isTV) return; // Apenas a TV monitora heartbeats
-    
-    const checkHeartbeats = setInterval(() => {
-      const now = Date.now();
-      const timeout = 60000; // 60 segundos sem heartbeat = desconectado (mais tolerante)
-      
-      setState(prev => {
-        let hasChanges = false;
-        const updatedPlayers = prev.players.map(p => {
-          const lastHeartbeat = lastHeartbeatRef.current[p.id];
-          const shouldBeConnected = lastHeartbeat && (now - lastHeartbeat) < timeout;
-          
-          if (p.isConnected !== shouldBeConnected) {
-            hasChanges = true;
-            if (!shouldBeConnected) {
-              console.log('⚠️ [QuizContext] TV marcou jogador desconectado:', p.name);
-            }
-          }
-          
-          return { ...p, isConnected: shouldBeConnected || false };
-        });
-        
-        if (hasChanges) {
-          const newState = { 
-            ...prev, 
-            players: updatedPlayers,
-            timestamp: Date.now()
-          };
-          // TV broadcast mudanças de conexão
-          if (sendNetworkMessage) {
-            sendNetworkMessage('STATE_SYNC', newState);
-          }
-          return newState;
-        }
-        
-        return prev;
-      });
-    }, 20000); // Verificar a cada 20 segundos
-
-    return () => {
-      clearInterval(checkHeartbeats);
-      Object.values(connectionTimeoutRef.current).forEach(timeout => clearTimeout(timeout));
-    };
-  }, [isTV, sendNetworkMessage]);
+  // Removido: sistema complexo de heartbeats que causava problemas
 
   // Backup localStorage (para persistência local)
   useEffect(() => {
@@ -541,6 +490,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Auto advance after 3 seconds (apenas na TV)
       setTimeout(() => {
+        console.log('⏭️ [QuizContext] Avançando para próxima pergunta automaticamente...');
         nextQuestion();
       }, 3000);
     }
@@ -548,12 +498,18 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const nextQuestion = () => {
     // Apenas a TV pode avançar questões
-    if (!isTV) return;
+    if (!isTV) {
+      console.log('❌ [QuizContext] nextQuestion chamado em dispositivo que não é TV');
+      return;
+    }
     
+    console.log('⏭️ [QuizContext] TV processando nextQuestion...');
     const nextIndex = state.currentQuestionIndex + 1;
+    console.log(`📊 [QuizContext] Índice atual: ${state.currentQuestionIndex}, próximo: ${nextIndex}, total: ${mockQuestions.length}`);
     
     let newState;
     if (nextIndex >= mockQuestions.length) {
+      console.log('🏁 [QuizContext] Quiz finalizado!');
       newState = {
         ...state,
         gameState: 'finished' as const,
@@ -562,6 +518,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         timestamp: Date.now()
       };
     } else {
+      console.log(`❓ [QuizContext] Avançando para pergunta ${nextIndex + 1}:`, mockQuestions[nextIndex].question);
       newState = {
         ...state,
         currentQuestionIndex: nextIndex,
@@ -576,24 +533,29 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // TV broadcast estado completo atualizado
     if (sendNetworkMessage) {
+      console.log('📡 [QuizContext] TV broadcasting próxima pergunta');
       sendNetworkMessage('STATE_SYNC', newState);
     }
+    
+    console.log('✅ [QuizContext] nextQuestion concluído');
   };
 
   const resetGame = () => {
     // Apenas a TV pode resetar o jogo
     if (!isTV) return;
     
-    // Limpar cache localStorage
-    localStorage.removeItem('quizState');
-    localStorage.removeItem('playerId');
-    localStorage.removeItem('playerName');
+    console.log('🔄 [QuizContext] TV iniciando reset completo do jogo...');
     
-    // Limpar heartbeats
+    // Limpar TODOS os dados locais
+    localStorage.clear(); // Limpar tudo
+    
+    // Limpar heartbeats e timeouts
     lastHeartbeatRef.current = {};
+    Object.values(connectionTimeoutRef.current).forEach(timeout => clearTimeout(timeout));
+    connectionTimeoutRef.current = {};
     
     const resetState = {
-      players: [], // Limpar todos os jogadores para forçar reconexão
+      players: [], // Limpar todos os jogadores
       currentQuestion: null,
       currentQuestionIndex: 0,
       gameState: 'waiting' as const,
@@ -605,10 +567,18 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     setState(resetState);
     
-    // TV broadcast estado resetado
+    // Enviar mensagem de reset para todos os dispositivos
     if (sendNetworkMessage) {
-      sendNetworkMessage('STATE_SYNC', resetState);
+      console.log('📡 [QuizContext] TV enviando reset para todos os dispositivos');
+      sendNetworkMessage('GAME_RESET', resetState);
+      
+      // Também enviar STATE_SYNC após um pequeno delay
+      setTimeout(() => {
+        sendNetworkMessage('STATE_SYNC', resetState);
+      }, 1000);
     }
+    
+    console.log('✅ [QuizContext] Reset completo realizado');
   };
 
   return (

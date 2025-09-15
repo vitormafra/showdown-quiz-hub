@@ -41,55 +41,8 @@ const PlayerView: React.FC = () => {
     console.log('📨 [PlayerView] Mensagem recebida:', message);
   }, localPlayerId || undefined);
 
-  // Auto-recuperar dados salvos com proteção contra erro
-  useEffect(() => {
-    try {
-      console.log('🔍 [PlayerView] Verificando dados salvos...');
-      const savedDeviceId = safeLocalStorage.getItem('deviceId');
-      
-      console.log('💾 [PlayerView] Dados salvos:', { 
-        localPlayerId, 
-        localPlayerName, 
-        savedDeviceId,
-        currentDeviceId: deviceId 
-      });
-      console.log('👥 [PlayerView] Jogadores atuais no estado:', state.players);
-      
-      if (localPlayerId && localPlayerName && savedDeviceId === deviceId) {
-        // Verificar se o jogador ainda existe no estado
-        const existingPlayer = state.players.find(p => p?.id === localPlayerId);
-        if (existingPlayer) {
-          console.log('✅ [PlayerView] Jogador reconectado automaticamente:', localPlayerName);
-          setPlayerName(localPlayerName);
-          
-          // Enviar mensagem de reconexão com verificação
-          setTimeout(() => {
-            if (sendMessage) {
-              sendMessage('PLAYER_JOINED', {
-                id: localPlayerId,
-                name: localPlayerName,
-                score: existingPlayer.score || 0,
-                isConnected: true
-              });
-            }
-          }, 500);
-        } else {
-          console.log('❌ [PlayerView] Jogador não existe mais, limpando cache');
-          clearLocalPlayer();
-        }
-      } else {
-        console.log('🆕 [PlayerView] Nenhum dado salvo encontrado ou deviceId diferente');
-        if (savedDeviceId && savedDeviceId !== deviceId) {
-          // Device diferente, limpar dados antigos
-          clearLocalPlayer();
-        }
-      }
-    } catch (error) {
-      console.error('❌ [PlayerView] Erro ao recuperar dados salvos:', error);
-      // Limpar dados corrompidos
-      clearLocalPlayer();
-    }
-  }, [state.players, deviceId, sendMessage, localPlayerId, localPlayerName, clearLocalPlayer]);
+  // Simplificado: não fazer auto-reconexão automática
+  // O jogador precisa entrar manualmente sempre
 
   // Salvar dados do jogador quando conectar com proteção
   useEffect(() => {
@@ -121,49 +74,36 @@ const PlayerView: React.FC = () => {
       return;
     }
     
-    // Verificar se já existe um jogador com esse nome
-    const existingPlayer = state.players.find(p => 
-      p?.name?.toLowerCase() === playerName.trim().toLowerCase()
-    );
+    // Criar novo jogador sempre (mais simples e confiável)
+    const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    console.log('✨ [PlayerView] Criando novo jogador:', { id: newPlayerId, name: playerName.trim() });
     
-    if (existingPlayer) {
-      // Reconectar como jogador existente
-      console.log('🔄 [PlayerView] Reconectando como jogador existente:', existingPlayer);
-      updateLocalPlayer(existingPlayer.id, existingPlayer.name);
-      
-      // Aguardar a atualização do estado antes de enviar a mensagem
-      setTimeout(() => {
-        if (sendMessage) {
-          sendMessage('PLAYER_JOINED', {
-            id: existingPlayer.id,
-            name: existingPlayer.name,
-            score: existingPlayer.score || 0,
-            isConnected: true
-          });
-        }
-      }, 100);
+    // Atualizar dados locais primeiro
+    updateLocalPlayer(newPlayerId, playerName.trim());
+    
+    // Adicionar localmente PRIMEIRO para feedback imediato
+    if (addPlayer) {
+      addPlayer(playerName.trim(), newPlayerId);
+      console.log('✅ [PlayerView] Jogador adicionado localmente');
+    }
+    
+    // Depois enviar mensagem para o servidor
+    if (sendMessage) {
+      console.log('📡 [PlayerView] Enviando PLAYER_JOINED...');
+      sendMessage('PLAYER_JOINED', {
+        id: newPlayerId,
+        name: playerName.trim(),
+        score: 0,
+        isConnected: true
+      });
+      console.log('✅ [PlayerView] Mensagem PLAYER_JOINED enviada');
     } else {
-      // Criar novo jogador com ID único
-      const newPlayerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      console.log('✨ [PlayerView] Criando novo jogador:', { id: newPlayerId, name: playerName.trim() });
-      
-      updateLocalPlayer(newPlayerId, playerName.trim());
-      
-      // Aguardar a atualização do estado antes de enviar a mensagem
-      setTimeout(() => {
-        if (sendMessage && addPlayer) {
-          sendMessage('PLAYER_JOINED', {
-            id: newPlayerId,
-            name: playerName.trim(),
-            score: 0,
-            isConnected: true
-          });
-          console.log('✅ [PlayerView] Novo jogador enviado com ID:', newPlayerId);
-          
-          // Adicionar jogador localmente também
-          addPlayer(playerName.trim(), newPlayerId);
-        }
-      }, 100);
+      console.error('❌ [PlayerView] sendMessage não disponível');
+      toast({
+        title: "Erro",
+        description: "Erro de conexão. Verifique sua rede.",
+        variant: "destructive"
+      });
     }
   }, () => {
     toast({

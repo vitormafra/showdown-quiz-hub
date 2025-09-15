@@ -285,50 +285,15 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
     // Iniciar WebSocket
     connectWebSocket();
 
-  // Configurar heartbeat e sincronização robusta
+  // Heartbeat simplificado apenas para manter conexão viva
     if (playerId) {
-      const startHeartbeat = () => {
-        if (heartbeatIntervalRef.current) {
-          clearInterval(heartbeatIntervalRef.current);
-        }
-        
-        // Heartbeat fixo e confiável
-        const heartbeatInterval = 8000; // 8 segundos fixo para estabilidade
-        
-        const updateHeartbeat = () => {
-          heartbeatIntervalRef.current = setTimeout(() => {
-            sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
-            
-            // Solicitar sincronização a cada 3 heartbeats (24s)
-            if (Math.random() < 0.33) {
-              setTimeout(() => {
-                sendMessage('SYNC_REQUEST', {});
-              }, 1000);
-            }
-            
-            updateHeartbeat();
-          }, heartbeatInterval);
-        };
-        
-        updateHeartbeat();
-      };
+      const heartbeatInterval = setInterval(() => {
+        sendMessage('HEARTBEAT', { playerId, timestamp: Date.now() });
+      }, 30000); // A cada 30 segundos apenas
       
-      startHeartbeat();
-      
-      // Monitorar e solicitar sincronização quando necessário
-      const syncCheckInterval = setInterval(() => {
-        updateConnectionQuality();
-        
-        // Se conexão está ruim, solicitar sincronização
-        if (connectionQualityRef.current === 'poor') {
-          console.log('📡 [useLocalNetwork] Conexão ruim, solicitando sincronização');
-          sendMessage('SYNC_REQUEST', {});
-        }
-      }, 15000); // Verificar a cada 15 segundos
-      
-      // Cleanup dos intervalos
+      // Cleanup
       return () => {
-        clearInterval(syncCheckInterval);
+        clearInterval(heartbeatInterval);
       };
     }
 

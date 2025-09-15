@@ -213,6 +213,19 @@ const TVView: React.FC = () => {
                   </div>
                 ))}
               </div>
+              
+              {/* Botão manual para avançar */}
+              <div className="text-center mt-6">
+                <p className="text-white/60 mb-4">Próxima pergunta em instantes...</p>
+                <Button 
+                  onClick={nextQuestion} 
+                  variant="outline" 
+                  className="bg-quiz-success/20 border-quiz-success/50 hover:bg-quiz-success/30 text-white"
+                >
+                  <SkipForward className="w-4 h-4 mr-2" />
+                  Avançar Agora
+                </Button>
+              </div>
             </Card>
           </div>
         )}
