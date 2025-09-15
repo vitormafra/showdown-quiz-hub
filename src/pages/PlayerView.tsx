@@ -200,7 +200,7 @@ const PlayerView: React.FC = () => {
               <div className="text-6xl mb-4">🎉</div>
               <h3 className="text-2xl font-bold text-white mb-2">Quiz Finalizado!</h3>
               <p className="text-white/80 mb-4">Você marcou:</p>
-              <div className="text-4xl font-bold text-quiz-warning mb-2">
+              <div className="text-4xl font-bold text-quiz-warning mb-4">
                 {currentPlayer.score} pontos
               </div>
               
@@ -209,7 +209,7 @@ const PlayerView: React.FC = () => {
                 const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
                 const position = sortedPlayers.findIndex(p => p.id === playerId) + 1;
                 return (
-                  <Badge className={`text-lg px-4 py-2 ${
+                  <Badge className={`text-lg px-4 py-2 mb-4 ${
                     position === 1 ? 'quiz-success-gradient' :
                     position === 2 ? 'bg-quiz-secondary' :
                     position === 3 ? 'bg-quiz-warning' : 'bg-muted'
@@ -222,7 +222,13 @@ const PlayerView: React.FC = () => {
                 );
               })()}
             </div>
-            <p className="text-white/80">Parabéns por participar!</p>
+            
+            <div className="border-t border-white/20 pt-4">
+              <p className="text-white/80 mb-2">Parabéns por participar!</p>
+              <p className="text-white/60 text-sm">
+                ⏳ Aguardando próximo jogo...
+              </p>
+            </div>
           </Card>
         )}
       </div>

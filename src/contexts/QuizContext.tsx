@@ -284,14 +284,23 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const resetGame = () => {
-    setState(prev => ({
-      ...prev,
-      players: prev.players.map(p => ({ ...p, score: 0 })),
+    const resetState = {
+      gameState: 'waiting' as const,
       currentQuestion: null,
       currentQuestionIndex: 0,
-      gameState: 'waiting',
       activePlayer: null,
+      players: state.players.map(p => ({ ...p, score: 0 })), // Mantém jogadores mas zera pontuação
+    };
+    
+    setState(prev => ({
+      ...prev,
+      ...resetState,
     }));
+    
+    // Sincronizar reset com todos os dispositivos
+    sendNetworkMessage('GAME_STATE_CHANGE', resetState);
+    
+    console.log('Jogo resetado - mantendo jogadores conectados');
   };
 
   return (

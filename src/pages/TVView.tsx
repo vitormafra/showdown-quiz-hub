@@ -34,6 +34,16 @@ const TVView: React.FC = () => {
             <Badge variant="outline" className="text-lg px-4 py-2 bg-white/10 border-white/20">
               Sala: {state.roomCode} | WiFi Local
             </Badge>
+            {/* Botão de Reset sempre disponível para o operador */}
+            {state.gameState !== 'waiting' && (
+              <Button 
+                onClick={resetGame} 
+                variant="outline" 
+                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                🔄 Reset
+              </Button>
+            )}
           </div>
         </div>
 
@@ -200,7 +210,7 @@ const TVView: React.FC = () => {
               <Trophy className="w-20 h-20 text-quiz-warning mx-auto mb-6" />
               <h2 className="text-4xl font-bold text-white mb-8">🎉 Quiz Finalizado! 🎉</h2>
               
-              <div className="space-y-4">
+              <div className="space-y-4 mb-8">
                 {sortedPlayers.map((player, index) => (
                   <div
                     key={player.id}
@@ -224,11 +234,22 @@ const TVView: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </Card>
 
-            <Button onClick={resetGame} size="lg" className="quiz-gradient-bg hover:opacity-90 text-xl px-8 py-4">
-              Novo Quiz
-            </Button>
+              {/* Botão de Reset mais visível no centro do card */}
+              <div className="bg-white/10 rounded-2xl p-6 border-2 border-dashed border-white/30">
+                <h3 className="text-white text-xl font-bold mb-4">Jogar Novamente?</h3>
+                <Button 
+                  onClick={resetGame} 
+                  size="lg" 
+                  className="quiz-gradient-bg hover:opacity-90 text-2xl px-12 py-6 quiz-glow animate-pulse-slow"
+                >
+                  🔄 Resetar Jogo
+                </Button>
+                <p className="text-white/70 text-sm mt-3">
+                  Mantém os jogadores conectados e zera a pontuação
+                </p>
+              </div>
+            </Card>
           </div>
         )}
 
