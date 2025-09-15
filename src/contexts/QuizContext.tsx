@@ -120,20 +120,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('  - playersCount:', newState.players.length);
           console.log('  - gameState:', newState.gameState);
           
-          // Auto-start se tiver pelo menos 1 jogador e o jogo estiver esperando
-          if (newState.players.length >= 1 && newState.gameState === 'waiting') {
-            console.log('🚀 [QuizContext] CONDIÇÕES ATENDIDAS PARA AUTO-START!');
-            console.log('  - Jogadores:', newState.players.length);
-            console.log('  - Estado:', newState.gameState);
-            const gameStartState = {
-              ...newState,
-              gameState: 'playing' as const,
-              currentQuestion: mockQuestions[0],
-              currentQuestionIndex: 0,
-            };
-            console.log('🎮 [QuizContext] INICIANDO JOGO AUTOMATICAMENTE!', gameStartState);
-            return gameStartState;
-          }
+          // Auto-start removido - jogo só inicia manualmente
+          console.log('⏸️ [QuizContext] Auto-start desabilitado - aguardando início manual');
           
           console.log('⏸️ [QuizContext] Auto-start NÃO executado - condições não atendidas');
           return newState;

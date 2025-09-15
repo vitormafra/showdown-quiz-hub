@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import QuizLogo from '@/components/QuizLogo';
-import { QrCode, Trophy, Users, PlayCircle, SkipForward } from 'lucide-react';
+import { QrCode, Trophy, Users, PlayCircle, SkipForward, UserCircle } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const TVView: React.FC = () => {
   const { state, startGame, nextQuestion, resetGame } = useQuiz();
@@ -23,28 +24,18 @@ const TVView: React.FC = () => {
   return (
     <div className="min-h-screen quiz-gradient-bg p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header Simplificado */}
         <div className="flex justify-between items-center mb-8">
           <QuizLogo />
-          <div className="flex gap-4">
-            <Badge variant="secondary" className="text-lg px-4 py-2">
-              <Users className="w-5 h-5 mr-2" />
-              {state.players.filter(p => p.isConnected).length} Online / {state.players.length} Total
-            </Badge>
-            <Badge variant="outline" className="text-lg px-4 py-2 bg-white/10 border-white/20">
-              Sala: {state.roomCode} | WiFi Local | Auto-Start
-            </Badge>
-            {/* Botão de Reset sempre disponível para o operador */}
-            {state.gameState !== 'waiting' && (
-              <Button 
-                onClick={resetGame} 
-                variant="outline" 
-                className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              >
-                🔄 Reset Completo
-              </Button>
-            )}
-          </div>
+          {state.gameState !== 'waiting' && (
+            <Button 
+              onClick={resetGame} 
+              variant="outline" 
+              className="bg-white/10 border-white/20 hover:bg-white/20 text-white"
+            >
+              🔄 Reset Completo
+            </Button>
+          )}
         </div>
 
         {/* Waiting State */}
@@ -52,16 +43,19 @@ const TVView: React.FC = () => {
           <div className="text-center">
             <Card className="quiz-card-gradient border-white/10 p-12 mb-8">
               <div className="mb-8">
-                <div className="w-48 h-48 mx-auto mb-6 bg-white/10 rounded-3xl flex flex-col items-center justify-center border-4 border-dashed border-white/30">
-                  <QrCode className="w-20 h-20 mb-4 text-white" />
-                  <p className="text-white/80 text-lg">Escaneie o QR Code</p>
-                  <p className="text-white/60">para participar</p>
+                <div className="w-64 h-64 mx-auto mb-6 bg-white p-4 rounded-3xl">
+                  <QRCodeSVG 
+                    value={`${window.location.origin}/player`}
+                    size={224}
+                    level="M"
+                    includeMargin={false}
+                  />
                 </div>
                 <h2 className="text-4xl font-bold text-white mb-4">
                   Aguardando Jogadores...
                 </h2>
                 <p className="text-white/80 text-xl">
-                  Acesse: quiz.game/{state.roomCode}
+                  Escaneie o QR Code ou acesse: /player
                 </p>
               </div>
             </Card>
@@ -69,36 +63,36 @@ const TVView: React.FC = () => {
             {/* Connected Players */}
             {state.players.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-2xl font-bold text-white mb-4">
+                <h3 className="text-2xl font-bold text-white mb-6">
                   Jogadores Conectados ({state.players.length}):
                 </h3>
-                <div className="grid grid-cols-4 gap-4">
-                  {state.players.map((player, index) => (
-                    <Card key={player.id} className="quiz-card-gradient border-white/10 p-4 animate-bounce-subtle">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-quiz-primary rounded-full flex items-center justify-center mx-auto mb-2">
-                          <span className="text-white font-bold">
-                            {player.name.charAt(0).toUpperCase()}
-                          </span>
+                <div className="flex justify-center">
+                  <div className="grid grid-cols-3 gap-6 max-w-2xl">
+                    {state.players.map((player, index) => (
+                      <Card key={player.id} className="quiz-card-gradient border-white/10 p-6 animate-bounce-subtle">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-gradient-to-br from-quiz-primary to-quiz-secondary rounded-full flex items-center justify-center mx-auto mb-3 quiz-glow">
+                            <UserCircle className="w-8 h-8 text-white" />
+                          </div>
+                          <p className="text-white font-bold text-lg mb-2">{player.name}</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${
+                              player.isConnected 
+                                ? 'bg-quiz-success animate-pulse-slow' 
+                                : 'bg-quiz-danger'
+                            }`}></div>
+                            <span className={`text-sm font-semibold ${
+                              player.isConnected 
+                                ? 'text-quiz-success' 
+                                : 'text-quiz-danger'
+                            }`}>
+                              {player.isConnected ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-white font-semibold">{player.name}</p>
-                        <div className="flex items-center justify-center gap-1 mt-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            player.isConnected 
-                              ? 'bg-quiz-success animate-pulse-slow' 
-                              : 'bg-quiz-danger'
-                          }`}></div>
-                          <span className={`text-xs ${
-                            player.isConnected 
-                              ? 'text-quiz-success' 
-                              : 'text-quiz-danger'
-                          }`}>
-                            {player.isConnected ? 'Online' : 'Offline'}
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -107,15 +101,21 @@ const TVView: React.FC = () => {
               <div className="text-center mb-8">
                 <p className="text-white/60 text-lg">Aguardando jogadores se conectarem...</p>
                 <p className="text-white/40 text-sm mt-2">
-                  ⚡ O jogo iniciará automaticamente quando o primeiro jogador entrar
-                </p>
-                <p className="text-white/40 text-sm">
-                  📱 Os jogadores devem acessar /player para entrar
+                  📱 Escaneie o QR Code ou acesse /player para entrar
                 </p>
               </div>
             )}
 
-            {state.players.length >= 1 && (
+            {state.players.length === 1 && (
+              <div className="text-center mb-8">
+                <p className="text-white/70 text-lg">Aguardando mais jogadores...</p>
+                <p className="text-white/50 text-sm mt-2">
+                  É mais divertido com pelo menos 2 jogadores!
+                </p>
+              </div>
+            )}
+
+            {state.players.length >= 2 && (
               <Button onClick={startGame} size="lg" className="quiz-gradient-bg hover:opacity-90 text-xl px-8 py-4 quiz-glow">
                 <PlayCircle className="w-6 h-6 mr-2" />
                 Iniciar Quiz ({state.players.length} jogadores)
