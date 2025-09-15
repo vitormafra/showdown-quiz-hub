@@ -98,6 +98,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Sistema de sincronização robusto
   const lastSyncRef = useRef(Date.now());
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sendNetworkMessageRef = useRef<((type: string, data: any) => void) | null>(null);
   
   // Comunicação via rede local
   const handleNetworkMessage = React.useCallback((message: any) => {
@@ -121,9 +122,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 timestamp: Date.now()
               };
               // TV sempre broadcast o estado completo para todos
-              if (sendNetworkMessage) {
+              if (sendNetworkMessageRef.current) {
                 setTimeout(() => {
-                  sendNetworkMessage('STATE_SYNC', newState);
+                  sendNetworkMessageRef.current?.('STATE_SYNC', newState);
                 }, 200);
               }
               return newState;
@@ -137,9 +138,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             };
             
             // TV sempre broadcast o estado completo para todos
-            if (sendNetworkMessage) {
+            if (sendNetworkMessageRef.current) {
               setTimeout(() => {
-                sendNetworkMessage('STATE_SYNC', newState);
+                sendNetworkMessageRef.current?.('STATE_SYNC', newState);
               }, 200);
             }
             
@@ -173,8 +174,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   timestamp: Date.now()
                 };
                 // TV broadcast estado atualizado
-                if (sendNetworkMessage) {
-                  sendNetworkMessage('STATE_SYNC', newState);
+                if (sendNetworkMessageRef.current) {
+                  sendNetworkMessageRef.current('STATE_SYNC', newState);
                 }
                 return newState;
               }
@@ -196,8 +197,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               timestamp: Date.now()
             };
             // TV broadcast estado atualizado imediatamente
-            if (sendNetworkMessage) {
-              sendNetworkMessage('STATE_SYNC', newState);
+            if (sendNetworkMessageRef.current) {
+              sendNetworkMessageRef.current('STATE_SYNC', newState);
             }
             return newState;
           });
@@ -231,8 +232,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
             
             // TV broadcast estado atualizado
-            if (sendNetworkMessage) {
-              sendNetworkMessage('STATE_SYNC', newState);
+            if (sendNetworkMessageRef.current) {
+              sendNetworkMessageRef.current('STATE_SYNC', newState);
             }
             
             return newState;
@@ -264,14 +265,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
       case 'SYNC_REQUEST':
         // Apenas a TV responde com estado completo
-        if (isTV && sendNetworkMessage) {
+        if (isTV && sendNetworkMessageRef.current) {
           console.log('📺 [QuizContext] TV enviando estado para sincronização');
           setState(currentState => {
             const stateWithTimestamp = {
               ...currentState,
               timestamp: Date.now()
             };
-            sendNetworkMessage('STATE_SYNC', stateWithTimestamp);
+            sendNetworkMessageRef.current?.('STATE_SYNC', stateWithTimestamp);
             return stateWithTimestamp;
           });
         }
@@ -280,18 +281,23 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       case 'SERVER_READY':
         console.log('✅ [QuizContext] Servidor WebSocket pronto!');
         // Jogadores solicitam sincronização quando servidor estiver pronto
-        if (!isTV && sendNetworkMessage) {
+        if (!isTV && sendNetworkMessageRef.current) {
           console.log('📱 [QuizContext] Solicitando sincronização da TV...');
           setTimeout(() => {
-            sendNetworkMessage('SYNC_REQUEST', {});
+            sendNetworkMessageRef.current?.('SYNC_REQUEST', {});
           }, 1000);
         }
         break;
     }
-  }, [isTV]);  // Não incluir sendNetworkMessage aqui para evitar dependência circular
+  }, [isTV]);
 
   // Inicializar network
   const { sendMessage: sendNetworkMessage, connectionStatus } = useLocalNetwork(handleNetworkMessage);
+  
+  // Atualizar ref quando sendNetworkMessage estiver disponível
+  useEffect(() => {
+    sendNetworkMessageRef.current = sendNetworkMessage;
+  }, [sendNetworkMessage]);
 
   // Sincronização forçada periódica (apenas TV)
   useEffect(() => {
@@ -336,7 +342,11 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         
         if (hasChanges) {
-          const newState = { ...prev, players: updatedPlayers };
+          const newState = { 
+            ...prev, 
+            players: updatedPlayers,
+            timestamp: Date.now()
+          };
           // TV broadcast mudanças de conexão
           if (sendNetworkMessage) {
             sendNetworkMessage('STATE_SYNC', newState);
@@ -417,7 +427,11 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     
     setState(prev => {
-      const completeState = { ...prev, ...newState };
+      const completeState = { 
+        ...prev, 
+        ...newState,
+        timestamp: Date.now()
+      };
       // TV broadcast estado completo para todos
       if (sendNetworkMessage) {
         sendNetworkMessage('STATE_SYNC', completeState);
@@ -441,6 +455,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             gameState: 'buzzing' as const,
             activePlayer: playerId,
+            timestamp: Date.now()
           };
           // TV broadcast estado atualizado
           if (sendNetworkMessage) {
@@ -471,11 +486,13 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             p.id === playerId ? { ...p, score: p.score + 10 } : p
           ),
           gameState: 'results' as const,
+          timestamp: Date.now()
         };
       } else {
         newState = {
           ...state,
           gameState: 'results' as const,
+          timestamp: Date.now()
         };
       }
       
@@ -506,6 +523,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         gameState: 'finished' as const,
         currentQuestion: null,
         activePlayer: null,
+        timestamp: Date.now()
       };
     } else {
       newState = {
@@ -514,6 +532,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         currentQuestion: mockQuestions[nextIndex],
         gameState: 'playing' as const,
         activePlayer: null,
+        timestamp: Date.now()
       };
     }
     
@@ -545,16 +564,15 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       activePlayer: null,
       totalQuestions: mockQuestions.length,
       roomCode: 'QUIZ123',
+      timestamp: Date.now()
     };
     
     setState(resetState);
     
-    // TV broadcast estado resetado para todos
+    // TV broadcast estado resetado
     if (sendNetworkMessage) {
       sendNetworkMessage('STATE_SYNC', resetState);
     }
-    
-    console.log('📺 [QuizContext] TV resetou jogo - estado limpo');
   };
 
   return (
@@ -578,7 +596,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useQuiz = () => {
   const context = useContext(QuizContext);
   if (context === undefined) {
-    throw new Error('useQuiz must be used within a QuizProvider');
+    throw new Error('useQuiz deve ser usado dentro de um QuizProvider');
   }
   return context;
 };
