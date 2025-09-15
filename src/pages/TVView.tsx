@@ -14,6 +14,12 @@ const TVView: React.FC = () => {
     ? state.players.find(p => p.id === state.activePlayer)?.name 
     : null;
 
+  // Debug: Log do estado atual
+  React.useEffect(() => {
+    console.log('TV - Estado atual:', state);
+    console.log('TV - Jogadores:', state.players);
+  }, [state]);
+
   return (
     <div className="min-h-screen quiz-gradient-bg p-8">
       <div className="max-w-7xl mx-auto">
@@ -53,10 +59,12 @@ const TVView: React.FC = () => {
             {/* Connected Players */}
             {state.players.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-2xl font-bold text-white mb-4">Jogadores Conectados:</h3>
+                <h3 className="text-2xl font-bold text-white mb-4">
+                  Jogadores Conectados ({state.players.length}):
+                </h3>
                 <div className="grid grid-cols-4 gap-4">
-                  {state.players.map((player) => (
-                    <Card key={player.id} className="quiz-card-gradient border-white/10 p-4">
+                  {state.players.map((player, index) => (
+                    <Card key={player.id} className="quiz-card-gradient border-white/10 p-4 animate-bounce-subtle">
                       <div className="text-center">
                         <div className="w-12 h-12 bg-quiz-primary rounded-full flex items-center justify-center mx-auto mb-2">
                           <span className="text-white font-bold">
@@ -64,7 +72,10 @@ const TVView: React.FC = () => {
                           </span>
                         </div>
                         <p className="text-white font-semibold">{player.name}</p>
-                        <div className="w-3 h-3 bg-quiz-success rounded-full mx-auto mt-2 animate-pulse-slow"></div>
+                        <div className="flex items-center justify-center gap-1 mt-2">
+                          <div className="w-3 h-3 bg-quiz-success rounded-full animate-pulse-slow"></div>
+                          <span className="text-quiz-success text-xs">Conectado</span>
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -72,10 +83,19 @@ const TVView: React.FC = () => {
               </div>
             )}
 
-            {state.players.length >= 2 && (
+            {state.players.length === 0 && (
+              <div className="text-center mb-8">
+                <p className="text-white/60 text-lg">Nenhum jogador conectado ainda...</p>
+                <p className="text-white/40 text-sm mt-2">
+                  Os jogadores devem acessar /player para entrar
+                </p>
+              </div>
+            )}
+
+            {state.players.length >= 1 && (
               <Button onClick={startGame} size="lg" className="quiz-gradient-bg hover:opacity-90 text-xl px-8 py-4 quiz-glow">
                 <PlayCircle className="w-6 h-6 mr-2" />
-                Iniciar Quiz
+                Iniciar Quiz ({state.players.length} jogadores)
               </Button>
             )}
           </div>

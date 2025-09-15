@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 export interface Player {
   id: string;
@@ -80,6 +80,55 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     roomCode: 'QUIZ123',
   });
 
+  // Sincronização via localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('quizState');
+    if (savedState) {
+      try {
+        const parsedState = JSON.parse(savedState);
+        setState(prev => ({
+          ...prev,
+          players: parsedState.players || [],
+          gameState: parsedState.gameState || 'waiting',
+        }));
+        console.log('Estado carregado do localStorage:', parsedState);
+      } catch (error) {
+        console.error('Erro ao carregar estado:', error);
+      }
+    }
+  }, []);
+
+  // Salvar estado no localStorage
+  useEffect(() => {
+    localStorage.setItem('quizState', JSON.stringify(state));
+    console.log('Estado salvo no localStorage:', state);
+  }, [state]);
+
+  // Listener para mudanças do localStorage (sincronização entre abas)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'quizState' && e.newValue) {
+        try {
+          const newState = JSON.parse(e.newValue);
+          setState(prev => ({
+            ...prev,
+            players: newState.players || [],
+            gameState: newState.gameState || 'waiting',
+            currentQuestion: newState.currentQuestion || null,
+            currentQuestionIndex: newState.currentQuestionIndex || 0,
+            activePlayer: newState.activePlayer || null,
+          }));
+          console.log('Estado sincronizado entre abas:', newState);
+        } catch (error) {
+          console.error('Erro ao sincronizar estado:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const addPlayer = (name: string) => {
     const newPlayer: Player = {
       id: Date.now().toString(),
@@ -88,15 +137,22 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isConnected: true,
     };
 
-    setState(prev => ({
-      ...prev,
-      players: [...prev.players, newPlayer],
-    }));
+    console.log('Adicionando jogador:', newPlayer);
+
+    setState(prev => {
+      const newState = {
+        ...prev,
+        players: [...prev.players, newPlayer],
+      };
+      console.log('Novo estado após adicionar jogador:', newState);
+      return newState;
+    });
 
     return newPlayer.id;
   };
 
   const startGame = () => {
+    console.log('Iniciando jogo...');
     setState(prev => ({
       ...prev,
       gameState: 'playing',
@@ -106,6 +162,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const buzzIn = (playerId: string) => {
+    console.log('Jogador tentando responder:', playerId);
     if (state.gameState === 'playing') {
       setState(prev => ({
         ...prev,
