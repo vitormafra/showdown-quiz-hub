@@ -43,6 +43,34 @@ const TVView: React.FC = () => {
         </div>
       )}
 
+      {/* Tela cheia de resultado "Acertou!" ou "Errou!" */}
+      {state.gameState === 'results' && state.lastAnswerResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center quiz-gradient-bg">
+          <div className="text-center animate-scale-in">
+            <div className="text-8xl mb-8">
+              {state.lastAnswerResult.isCorrect ? '🎉' : '❌'}
+            </div>
+            <h1 className="text-6xl md:text-8xl font-bold text-white mb-4 quiz-glow">
+              {state.lastAnswerResult.playerName}
+            </h1>
+            <h2 className={`text-4xl md:text-6xl font-bold mb-8 ${
+              state.lastAnswerResult.isCorrect 
+                ? 'text-quiz-success quiz-success-glow' 
+                : 'text-quiz-danger'
+            }`}>
+              {state.lastAnswerResult.isCorrect ? 'ACERTOU!' : 'ERROU!'}
+            </h2>
+            <div className="flex justify-center">
+              <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                <div className={`w-full h-full animate-pulse ${
+                  state.lastAnswerResult.isCorrect ? 'bg-quiz-success' : 'bg-quiz-danger'
+                }`}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Header Simplificado */}
         <div className="flex justify-between items-center mb-8">

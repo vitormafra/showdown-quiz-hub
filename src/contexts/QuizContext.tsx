@@ -24,6 +24,12 @@ export interface QuizState {
   totalQuestions: number;
   roomCode: string;
   timestamp?: number;
+  lastAnswerResult?: {
+    playerId: string;
+    playerName: string;
+    isCorrect: boolean;
+    timestamp: number;
+  } | null;
 }
 
 interface QuizContextType {
@@ -213,12 +219,24 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   p.id === playerId ? { ...p, score: p.score + 10 } : p
                 ),
                 gameState: 'results' as const,
+                lastAnswerResult: {
+                  playerId,
+                  playerName: player.name,
+                  isCorrect: true,
+                  timestamp: Date.now()
+                },
                 timestamp: Date.now()
               };
             } else {
               newState = {
                 ...prev,
                 gameState: 'results' as const,
+                lastAnswerResult: {
+                  playerId,
+                  playerName: player?.name || 'Jogador',
+                  isCorrect: false,
+                  timestamp: Date.now()
+                },
                 timestamp: Date.now()
               };
             }
@@ -487,12 +505,24 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             p.id === playerId ? { ...p, score: p.score + 10 } : p
           ),
           gameState: 'results' as const,
+          lastAnswerResult: {
+            playerId,
+            playerName: player.name,
+            isCorrect: true,
+            timestamp: Date.now()
+          },
           timestamp: Date.now()
         };
       } else {
         newState = {
           ...state,
           gameState: 'results' as const,
+          lastAnswerResult: {
+            playerId,
+            playerName: player?.name || 'Jogador',
+            isCorrect: false,
+            timestamp: Date.now()
+          },
           timestamp: Date.now()
         };
       }
@@ -503,6 +533,21 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (sendNetworkMessage) {
         sendNetworkMessage('STATE_SYNC', newState);
       }
+      
+      // Limpar resultado após 2 segundos
+      setTimeout(() => {
+        setState(current => {
+          const clearedState = {
+            ...current,
+            lastAnswerResult: null,
+            timestamp: Date.now()
+          };
+          if (sendNetworkMessage) {
+            sendNetworkMessage('STATE_SYNC', clearedState);
+          }
+          return clearedState;
+        });
+      }, 2000);
 
       // Auto advance after 3 seconds (apenas na TV)
       setTimeout(() => {
@@ -586,7 +631,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Enviar mensagem de reset para todos os dispositivos
     if (sendNetworkMessage) {
       console.log('📡 [QuizContext] TV enviando reset para todos os dispositivos');
-      sendNetworkMessage('GAME_RESET', resetState);
+      sendNetworkMessage('STATE_SYNC', resetState);
       
       // Também enviar STATE_SYNC após um pequeno delay
       setTimeout(() => {
