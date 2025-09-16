@@ -43,30 +43,55 @@ const TVView: React.FC = () => {
         </div>
       )}
 
-      {/* Tela cheia de resultado "Acertou!" ou "Errou!" */}
+      {/* Tela cheia de resultado "Acertou!" ou "Errou!" - MELHORADA */}
       {state.gameState === 'results' && state.lastAnswerResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center quiz-gradient-bg">
           <div className="text-center animate-scale-in">
-            <div className="text-8xl mb-8">
-              {state.lastAnswerResult.isCorrect ? '🎉' : '❌'}
+            {/* Ícone principal animado */}
+            <div className={`text-9xl mb-6 animate-bounce-subtle ${
+              state.lastAnswerResult.isCorrect ? 'animate-pulse-slow' : ''
+            }`}>
+              {state.lastAnswerResult.isCorrect ? '🎉' : '💥'}
             </div>
-            <h1 className="text-6xl md:text-8xl font-bold text-white mb-4 quiz-glow">
+            
+            {/* Nome do jogador */}
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 quiz-glow animate-fade-in">
               {state.lastAnswerResult.playerName}
             </h1>
-            <h2 className={`text-4xl md:text-6xl font-bold mb-8 ${
+            
+            {/* Resultado principal */}
+            <div className={`relative mb-8 ${
               state.lastAnswerResult.isCorrect 
-                ? 'text-quiz-success quiz-success-glow' 
-                : 'text-quiz-danger'
-            }`}>
-              {state.lastAnswerResult.isCorrect ? 'ACERTOU!' : 'ERROU!'}
-            </h2>
+                ? 'quiz-success-gradient' 
+                : 'bg-gradient-to-r from-quiz-danger to-red-600'
+            } rounded-3xl p-8 border-4 ${
+              state.lastAnswerResult.isCorrect 
+                ? 'border-quiz-success quiz-success-glow' 
+                : 'border-quiz-danger'
+            } animate-pulse-slow`}>
+              <h2 className="text-4xl md:text-6xl font-black text-white mb-4">
+                {state.lastAnswerResult.isCorrect ? '✨ ACERTOU! ✨' : '❌ ERROU! ❌'}
+              </h2>
+              {state.lastAnswerResult.isCorrect && (
+                <p className="text-2xl text-white/90 font-semibold">+10 pontos!</p>
+              )}
+            </div>
+            
+            {/* Barra de progresso/loading */}
             <div className="flex justify-center">
-              <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
-                <div className={`w-full h-full animate-pulse ${
+              <div className="w-32 h-3 bg-white/20 rounded-full overflow-hidden">
+                <div className={`h-full animate-[progress_2s_linear] ${
                   state.lastAnswerResult.isCorrect ? 'bg-quiz-success' : 'bg-quiz-danger'
-                }`}></div>
+                }`} style={{
+                  animation: 'progress 2s linear forwards',
+                  width: '0%'
+                }}></div>
               </div>
             </div>
+            
+            <p className="text-white/70 text-lg mt-4 animate-fade-in">
+              Próxima pergunta chegando...
+            </p>
           </div>
         </div>
       )}

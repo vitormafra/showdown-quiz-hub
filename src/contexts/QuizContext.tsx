@@ -534,8 +534,9 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sendNetworkMessage('STATE_SYNC', newState);
       }
       
-      // Limpar resultado após 2 segundos
+      // Auto advance após mostrar resultado (2s) + pausa (1s) = 3s total
       setTimeout(() => {
+        // Primeiro limpar o resultado
         setState(current => {
           const clearedState = {
             ...current,
@@ -547,13 +548,14 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           return clearedState;
         });
+        
+        // Depois avançar para próxima pergunta após mais 1 segundo
+        setTimeout(() => {
+          console.log('⏭️ [QuizContext] Avançando para próxima pergunta automaticamente...');
+          nextQuestion();
+        }, 1000);
       }, 2000);
 
-      // Auto advance after 3 seconds (apenas na TV)
-      setTimeout(() => {
-        console.log('⏭️ [QuizContext] Avançando para próxima pergunta automaticamente...');
-        nextQuestion();
-      }, 3000);
     }
   };
 
