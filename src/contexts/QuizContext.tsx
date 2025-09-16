@@ -228,8 +228,18 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 timestamp: Date.now()
               };
             } else {
+              // Jogador errou - pontos vão para os adversários
+              const otherPlayers = prev.players.filter(p => p.id !== playerId);
+              const pointsPerOpponent = otherPlayers.length > 0 ? Math.floor(10 / otherPlayers.length) : 0;
+              
               newState = {
                 ...prev,
+                players: prev.players.map(p => {
+                  if (p.id !== playerId && pointsPerOpponent > 0) {
+                    return { ...p, score: p.score + pointsPerOpponent };
+                  }
+                  return p;
+                }),
                 gameState: 'results' as const,
                 lastAnswerResult: {
                   playerId,
@@ -500,6 +510,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       let newState;
       if (player && isCorrect) {
+        // Jogador acertou - ganha os pontos
         newState = {
           ...state,
           players: state.players.map(p =>
@@ -515,8 +526,18 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           timestamp: Date.now()
         };
       } else {
+        // Jogador errou - pontos vão para os adversários
+        const otherPlayers = state.players.filter(p => p.id !== playerId);
+        const pointsPerOpponent = otherPlayers.length > 0 ? Math.floor(10 / otherPlayers.length) : 0;
+        
         newState = {
           ...state,
+          players: state.players.map(p => {
+            if (p.id !== playerId && pointsPerOpponent > 0) {
+              return { ...p, score: p.score + pointsPerOpponent };
+            }
+            return p;
+          }),
           gameState: 'results' as const,
           lastAnswerResult: {
             playerId,
