@@ -535,52 +535,35 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sendNetworkMessage('STATE_SYNC', newState);
       }
       
-      // Auto advance após mostrar resultado por 2 segundos
+      // Auto advance após mostrar resultado por 3 segundos TOTAL
       setTimeout(() => {
-        console.log('🔄 [QuizContext] Iniciando auto-avanço após resultado...');
+        console.log('🔄 [QuizContext] Iniciando auto-avanço...');
         
-        setState(currentState => {
-          console.log('📊 [QuizContext] Estado antes do auto-avanço:', {
-            currentIndex: currentState.currentQuestionIndex,
-            gameState: currentState.gameState,
-            totalQuestions: mockQuestions.length
-          });
-          
-          const nextIndex = currentState.currentQuestionIndex + 1;
-          
-          let newState;
-          if (nextIndex >= mockQuestions.length) {
-            console.log('🏁 [QuizContext] Jogo finalizado!');
-            newState = {
-              ...currentState,
-              gameState: 'finished' as const,
-              currentQuestion: null,
-              activePlayer: null,
-              lastAnswerResult: null,
-              timestamp: Date.now()
-            };
-          } else {
-            console.log(`❓ [QuizContext] Avançando para pergunta ${nextIndex + 1}`);
-            newState = {
-              ...currentState,
-              currentQuestionIndex: nextIndex,
-              currentQuestion: mockQuestions[nextIndex],
-              gameState: 'playing' as const,
-              activePlayer: null,
-              lastAnswerResult: null,
-              timestamp: Date.now()
-            };
-          }
-          
-          // TV broadcast estado atualizado
+        // Primeiro limpar resultado
+        setState(current => {
+          console.log('🧹 [QuizContext] Limpando resultado da tela...');
+          const clearedState = {
+            ...current,
+            lastAnswerResult: null,
+            timestamp: Date.now()
+          };
           if (sendNetworkMessage) {
-            console.log('📡 [QuizContext] Enviando estado atualizado após auto-avanço');
-            sendNetworkMessage('STATE_SYNC', newState);
+            sendNetworkMessage('STATE_SYNC', clearedState);
           }
-          
-          return newState;
+          return clearedState;
         });
-      }, 2000);
+        
+        // Depois avançar para próxima pergunta após pequeno delay
+        setTimeout(() => {
+          console.log('⏭️ [QuizContext] Chamando nextQuestion...');
+          console.log('📍 [QuizContext] Estado atual antes do nextQuestion:', {
+            currentIndex: state.currentQuestionIndex,
+            gameState: state.gameState,
+            isTV
+          });
+          nextQuestion();
+        }, 1000);
+      }, 3000);
 
     }
   };
