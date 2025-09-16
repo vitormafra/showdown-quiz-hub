@@ -265,7 +265,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Verificação mais rigorosa de timestamp para evitar loops
           const timeDiff = messageTimestamp - lastSyncRef.current;
           const isResultClearing = message.data.lastAnswerResult === null && state.lastAnswerResult !== null;
-          const shouldSync = timeDiff > 100 || isResultClearing; // Sempre permitir limpeza de resultado
+          const shouldSync = timeDiff > 500 || isResultClearing; // 500ms + sempre permitir limpeza
           
           if (shouldSync) {
             console.log('🔄 [QuizContext] Jogador sincronizando com TV:', {
@@ -466,18 +466,19 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             sendNetworkMessage('STATE_SYNC', newState);
           }
           
-          // Voltar automaticamente para 'answering' após 2 segundos
+          // Voltar automaticamente para 'playing' após 2 segundos
           setTimeout(() => {
             setState(current => {
-              const answeringState = {
+              const playingState = {
                 ...current,
-                gameState: 'answering' as const,
+                gameState: 'playing' as const,
+                activePlayer: null, // Limpar jogador ativo
                 timestamp: Date.now()
               };
               if (sendNetworkMessage) {
-                sendNetworkMessage('STATE_SYNC', answeringState);
+                sendNetworkMessage('STATE_SYNC', playingState);
               }
-              return answeringState;
+              return playingState;
             });
           }, 2000); // 2 segundos para mostrar a tela cheia
           
@@ -535,35 +536,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sendNetworkMessage('STATE_SYNC', newState);
       }
       
-      // Auto advance após mostrar resultado por 3 segundos TOTAL
-      setTimeout(() => {
-        console.log('🔄 [QuizContext] Iniciando auto-avanço...');
-        
-        // Primeiro limpar resultado
-        setState(current => {
-          console.log('🧹 [QuizContext] Limpando resultado da tela...');
-          const clearedState = {
-            ...current,
-            lastAnswerResult: null,
-            timestamp: Date.now()
-          };
-          if (sendNetworkMessage) {
-            sendNetworkMessage('STATE_SYNC', clearedState);
-          }
-          return clearedState;
-        });
-        
-        // Depois avançar para próxima pergunta após pequeno delay
-        setTimeout(() => {
-          console.log('⏭️ [QuizContext] Chamando nextQuestion...');
-          console.log('📍 [QuizContext] Estado atual antes do nextQuestion:', {
-            currentIndex: state.currentQuestionIndex,
-            gameState: state.gameState,
-            isTV
-          });
-          nextQuestion();
-        }, 1000);
-      }, 3000);
+      // TIMEOUT REMOVIDO - deixar apenas o timeout do TVView gerenciar o avanço
+      console.log('✅ [QuizContext] Resultado definido - aguardando TVView gerenciar o avanço...');
 
     }
   };
