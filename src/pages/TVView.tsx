@@ -21,8 +21,39 @@ const TVView: React.FC = () => {
     console.log('TV - Jogadores:', state.players);
   }, [state]);
 
-  // Removido: lógica duplicada de auto-avanço que causava conflitos
-  // O auto-avanço agora é controlado apenas pelo QuizContext
+  // Auto-avanço com botão oculto após 5 segundos
+  const [countdown, setCountdown] = React.useState<number | null>(null);
+  const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  React.useEffect(() => {
+    if (state.gameState === 'results' && state.lastAnswerResult) {
+      console.log('🎯 [TVView] Iniciando countdown de 5 segundos...');
+      setCountdown(5);
+      
+      // Countdown visual
+      const intervalId = setInterval(() => {
+        setCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            clearInterval(intervalId);
+            console.log('⏰ [TVView] Countdown finalizado! Avançando...');
+            nextQuestion();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      countdownIntervalRef.current = intervalId;
+      
+      return () => {
+        console.log('🧹 [TVView] Limpando countdown...');
+        clearInterval(intervalId);
+        setCountdown(null);
+      };
+    } else {
+      setCountdown(null);
+    }
+  }, [state.gameState, state.lastAnswerResult, nextQuestion]);
 
   return (
     <div className="min-h-screen quiz-gradient-bg p-8">
@@ -290,9 +321,45 @@ const TVView: React.FC = () => {
                 ))}
               </div>
               
-              {/* Botão manual para avançar */}
-              <div className="text-center mt-6">
-                <p className="text-white/60 mb-4">Próxima pergunta em instantes...</p>
+              {/* Botão oculto com countdown automático */}
+              {countdown !== null && (
+                <div className="text-center mt-6">
+                  <div className="relative">
+                    {/* Botão oculto que se ativa automaticamente */}
+                    <Button 
+                      onClick={nextQuestion} 
+                      variant="ghost"
+                      className="opacity-0 pointer-events-none absolute inset-0"
+                      aria-hidden="true"
+                    >
+                      Auto Advance
+                    </Button>
+                    
+                    {/* Indicador visual do countdown */}
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">{countdown}</span>
+                        </div>
+                        <p className="text-white/70 text-sm">Próxima pergunta em {countdown}s...</p>
+                      </div>
+                      
+                      {/* Barra de progresso do countdown */}
+                      <div className="w-full h-2 bg-white/20 rounded-full mt-3 overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-quiz-primary to-quiz-secondary transition-all duration-1000 ease-linear"
+                          style={{ 
+                            width: `${((5 - countdown) / 5) * 100}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Botão manual para avançar (backup) */}
+              <div className="text-center mt-4">
                 <Button 
                   onClick={nextQuestion} 
                   variant="outline" 
