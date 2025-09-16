@@ -93,6 +93,19 @@ const TVView: React.FC = () => {
               {state.lastAnswerResult.playerName}
             </h1>
             
+            {/* Opção escolhida */}
+            <div className="mb-6">
+              <p className="text-2xl text-white/80 mb-2">Escolheu:</p>
+              <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-6 py-3 border border-white/20">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-xl">{state.lastAnswerResult.selectedOptionLetter}</span>
+                </div>
+                <span className="text-white/90 text-lg">
+                  {state.currentQuestion?.options[state.lastAnswerResult.selectedOption]}
+                </span>
+              </div>
+            </div>
+            
             {/* Resultado principal */}
             <div className={`relative mb-8 ${
               state.lastAnswerResult.isCorrect 
@@ -106,8 +119,20 @@ const TVView: React.FC = () => {
               <h2 className="text-4xl md:text-6xl font-black text-white mb-4">
                 {state.lastAnswerResult.isCorrect ? '✨ ACERTOU! ✨' : '❌ ERROU! ❌'}
               </h2>
-              {state.lastAnswerResult.isCorrect && (
-                <p className="text-2xl text-white/90 font-semibold">+10 pontos!</p>
+              
+              {state.lastAnswerResult.isCorrect ? (
+                <p className="text-2xl text-white/90 font-semibold">
+                  +{state.lastAnswerResult.pointsAwarded} pontos!
+                </p>
+              ) : (
+                <div className="text-center">
+                  <p className="text-xl text-white/90 mb-2">
+                    Resposta correta: <span className="font-bold">{state.lastAnswerResult.correctOptionLetter}</span>
+                  </p>
+                  <p className="text-lg text-white/80">
+                    {Math.abs(state.lastAnswerResult.pointsAwarded)} pontos para os adversários!
+                  </p>
+                </div>
               )}
             </div>
             
@@ -238,6 +263,12 @@ const TVView: React.FC = () => {
             <div className="flex justify-between items-center mb-8">
               <Badge variant="outline" className="text-lg px-4 py-2 bg-white/10 border-white/20">
                 Pergunta {state.currentQuestionIndex + 1} de {state.totalQuestions}
+                {state.currentQuestionIndex === state.totalQuestions - 1 && 
+                  <span className="ml-2 text-quiz-warning font-bold">(300 pts)</span>
+                }
+                {state.currentQuestionIndex < state.totalQuestions - 1 && 
+                  <span className="ml-2 text-quiz-primary font-bold">(100 pts)</span>
+                }
               </Badge>
               {state.gameState === 'buzzing' && activePlayerName && (
                 <Badge className="text-lg px-4 py-2 quiz-success-gradient animate-bounce-subtle">

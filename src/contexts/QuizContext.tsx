@@ -28,6 +28,11 @@ export interface QuizState {
     playerId: string;
     playerName: string;
     isCorrect: boolean;
+    selectedOption: number; // Qual opção foi escolhida (0, 1, 2, 3)
+    selectedOptionLetter: string; // A, B, C, D
+    correctOption: number; // Qual era a resposta correta
+    correctOptionLetter: string; // Letra da resposta correta
+    pointsAwarded: number; // Quantos pontos foram dados
     timestamp: number;
   } | null;
 }
@@ -497,31 +502,60 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (isTV) {
       const player = state.players.find(p => p.id === playerId);
       const isCorrect = answerIndex === state.currentQuestion?.correctAnswer;
+      
+      // Calcular pontos baseado na pergunta
+      const isLastQuestion = state.currentQuestionIndex === mockQuestions.length - 1;
+      const questionPoints = isLastQuestion ? 300 : 100;
+      
+      // Converter índices para letras
+      const selectedLetter = String.fromCharCode(65 + answerIndex); // A, B, C, D
+      const correctLetter = String.fromCharCode(65 + (state.currentQuestion?.correctAnswer || 0));
 
       let newState;
       if (player && isCorrect) {
+        // Jogador acertou - ganha pontos
         newState = {
           ...state,
           players: state.players.map(p =>
-            p.id === playerId ? { ...p, score: p.score + 10 } : p
+            p.id === playerId ? { ...p, score: p.score + questionPoints } : p
           ),
           gameState: 'results' as const,
           lastAnswerResult: {
             playerId,
             playerName: player.name,
             isCorrect: true,
+            selectedOption: answerIndex,
+            selectedOptionLetter: selectedLetter,
+            correctOption: state.currentQuestion?.correctAnswer || 0,
+            correctOptionLetter: correctLetter,
+            pointsAwarded: questionPoints,
             timestamp: Date.now()
           },
           timestamp: Date.now()
         };
       } else {
+        // Jogador errou - pontos vão para outros jogadores
+        const otherPlayers = state.players.filter(p => p.id !== playerId && p.isConnected);
+        const pointsPerPlayer = otherPlayers.length > 0 ? Math.floor(questionPoints / otherPlayers.length) : 0;
+        
         newState = {
           ...state,
+          players: state.players.map(p => {
+            if (p.id !== playerId && p.isConnected && pointsPerPlayer > 0) {
+              return { ...p, score: p.score + pointsPerPlayer };
+            }
+            return p;
+          }),
           gameState: 'results' as const,
           lastAnswerResult: {
             playerId,
             playerName: player?.name || 'Jogador',
             isCorrect: false,
+            selectedOption: answerIndex,
+            selectedOptionLetter: selectedLetter,
+            correctOption: state.currentQuestion?.correctAnswer || 0,
+            correctOptionLetter: correctLetter,
+            pointsAwarded: -pointsPerPlayer * otherPlayers.length, // Pontos perdidos
             timestamp: Date.now()
           },
           timestamp: Date.now()
