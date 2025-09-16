@@ -535,35 +535,51 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sendNetworkMessage('STATE_SYNC', newState);
       }
       
-      // Auto advance após mostrar resultado por 3 segundos TOTAL
+      // Auto advance SIMPLIFICADO após 2 segundos
       setTimeout(() => {
-        console.log('🔄 [QuizContext] Iniciando auto-avanço...');
+        console.log('⏰ [QuizContext] Auto-avançando após resultado...');
         
-        // Primeiro limpar resultado
-        setState(current => {
-          console.log('🧹 [QuizContext] Limpando resultado da tela...');
-          const clearedState = {
-            ...current,
-            lastAnswerResult: null,
-            timestamp: Date.now()
-          };
-          if (sendNetworkMessage) {
-            sendNetworkMessage('STATE_SYNC', clearedState);
+        setState(currentState => {
+          const nextIndex = currentState.currentQuestionIndex + 1;
+          
+          if (nextIndex >= mockQuestions.length) {
+            // Fim do jogo
+            console.log('🏁 [QuizContext] Fim do jogo!');
+            const finalState = {
+              ...currentState,
+              gameState: 'finished' as const,
+              currentQuestion: null,
+              activePlayer: null,
+              lastAnswerResult: null,
+              timestamp: Date.now()
+            };
+            
+            if (sendNetworkMessage) {
+              sendNetworkMessage('STATE_SYNC', finalState);
+            }
+            
+            return finalState;
+          } else {
+            // Próxima pergunta
+            console.log('➡️ [QuizContext] Próxima pergunta:', nextIndex);
+            const nextState = {
+              ...currentState,
+              currentQuestion: mockQuestions[nextIndex],
+              currentQuestionIndex: nextIndex,
+              gameState: 'playing' as const,
+              activePlayer: null,
+              lastAnswerResult: null,
+              timestamp: Date.now()
+            };
+            
+            if (sendNetworkMessage) {
+              sendNetworkMessage('STATE_SYNC', nextState);
+            }
+            
+            return nextState;
           }
-          return clearedState;
         });
-        
-        // Depois avançar para próxima pergunta após pequeno delay
-        setTimeout(() => {
-          console.log('⏭️ [QuizContext] Chamando nextQuestion...');
-          console.log('📍 [QuizContext] Estado atual antes do nextQuestion:', {
-            currentIndex: state.currentQuestionIndex,
-            gameState: state.gameState,
-            isTV
-          });
-          nextQuestion();
-        }, 1000);
-      }, 3000);
+      }, 2000);
 
     }
   };

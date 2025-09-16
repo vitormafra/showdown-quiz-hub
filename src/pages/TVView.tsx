@@ -21,22 +21,8 @@ const TVView: React.FC = () => {
     console.log('TV - Jogadores:', state.players);
   }, [state]);
 
-  // Timeout para limpar resultado e avançar automaticamente
-  React.useEffect(() => {
-    if (state.gameState === 'results' && state.lastAnswerResult) {
-      console.log('🎯 [TVView] Resultado detectado! Configurando timeout para limpar...');
-      
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ [TVView] Timeout atingido! Avançando para próxima pergunta...');
-        nextQuestion();
-      }, 2000); // 2 segundos para mostrar o resultado
-
-      return () => {
-        console.log('🧹 [TVView] Limpando timeout do resultado...');
-        clearTimeout(timeoutId);
-      };
-    }
-  }, [state.gameState, state.lastAnswerResult, nextQuestion]);
+  // Removido: lógica duplicada de auto-avanço que causava conflitos
+  // O auto-avanço agora é controlado apenas pelo QuizContext
 
   return (
     <div className="min-h-screen quiz-gradient-bg p-8">

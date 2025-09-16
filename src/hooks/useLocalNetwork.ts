@@ -18,9 +18,9 @@ export const useLocalNetwork = (onMessage: (message: NetworkMessage) => void, pl
   
   // Configurações adaptáveis de reconexão
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 10;
-  const baseReconnectDelay = 5000; // 5s inicial
-  const maxReconnectDelay = 30000; // 30s máximo
+  const maxReconnectAttempts = 3; // Reduzido para recuperação mais rápida
+  const baseReconnectDelay = 1000; // 1s inicial (mais rápido)
+  const maxReconnectDelay = 5000; // 5s máximo (reduzido)
   
   // Estado de qualidade da conexão
   const connectionQualityRef = useRef<'good' | 'unstable' | 'poor'>('good');
