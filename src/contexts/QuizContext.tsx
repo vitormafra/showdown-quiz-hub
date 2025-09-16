@@ -446,6 +446,22 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (sendNetworkMessage) {
             sendNetworkMessage('STATE_SYNC', newState);
           }
+          
+          // Voltar automaticamente para 'answering' após 2 segundos
+          setTimeout(() => {
+            setState(current => {
+              const answeringState = {
+                ...current,
+                gameState: 'answering' as const,
+                timestamp: Date.now()
+              };
+              if (sendNetworkMessage) {
+                sendNetworkMessage('STATE_SYNC', answeringState);
+              }
+              return answeringState;
+            });
+          }, 2000); // 2 segundos para mostrar a tela cheia
+          
           return newState;
         });
       }

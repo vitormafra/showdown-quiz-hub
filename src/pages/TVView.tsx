@@ -23,6 +23,26 @@ const TVView: React.FC = () => {
 
   return (
     <div className="min-h-screen quiz-gradient-bg p-8">
+      {/* Tela cheia "Fulano responde" */}
+      {state.gameState === 'buzzing' && activePlayerName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center quiz-gradient-bg">
+          <div className="text-center animate-pulse-slow">
+            <div className="text-8xl mb-8">🎯</div>
+            <h1 className="text-6xl md:text-8xl font-bold text-white mb-4 quiz-glow">
+              {activePlayerName}
+            </h1>
+            <h2 className="text-4xl md:text-6xl font-bold text-quiz-warning mb-8">
+              RESPONDE!
+            </h2>
+            <div className="flex justify-center">
+              <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                <div className="w-full h-full bg-quiz-success animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Header Simplificado */}
         <div className="flex justify-between items-center mb-8">
