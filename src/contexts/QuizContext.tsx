@@ -264,7 +264,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           // Verificação mais rigorosa de timestamp para evitar loops
           const timeDiff = messageTimestamp - lastSyncRef.current;
-          const shouldSync = timeDiff > 1000; // Só sincronizar se for pelo menos 1 segundo mais recente
+          const isResultClearing = message.data.lastAnswerResult === null && state.lastAnswerResult !== null;
+          const shouldSync = timeDiff > 100 || isResultClearing; // Sempre permitir limpeza de resultado
           
           if (shouldSync) {
             console.log('🔄 [QuizContext] Jogador sincronizando com TV:', {
